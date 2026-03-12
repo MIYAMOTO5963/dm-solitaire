@@ -12,7 +12,7 @@
 
 ブラウザで以下のURLを開くだけで使えます。インストール不要。
 
-**https://MIYAMOTO5963.github.io/dm-solitaire/dm-solitaire-web.html**
+**https://nagumaguma.github.io/dm-solitaire/dm-solitaire-web.html**
 
 Chrome か Edge で開いてください。
 
