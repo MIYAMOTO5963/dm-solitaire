@@ -13,8 +13,11 @@ dm-solitaire.html と同じフォルダで実行してください。
 
 import html as _html
 import json
+import os
 import re
+import sqlite3
 import sys
+import time
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -25,6 +28,51 @@ WIKI_API = "https://duelmasters.fandom.com/api.php"
 WIKI_HEADERS = {"User-Agent": "DMSolitaireTool/1.0 (local proxy)"}
 
 _dmwiki_cache: dict[str, list[dict]] = {}   # normalized_query → all matched cards
+
+# ─── SQLite card detail cache ──────────────────────────────────────────────────
+
+CACHE_DB  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dm_cache.db")
+CACHE_TTL = 90 * 86400  # 90 days
+
+
+def _init_cache():
+    con = sqlite3.connect(CACHE_DB)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS card_cache (
+            id        TEXT PRIMARY KEY,
+            data      TEXT NOT NULL,
+            cached_at REAL NOT NULL
+        )
+    """)
+    con.commit()
+    con.close()
+
+
+def _cache_get(cid: str) -> dict | None:
+    try:
+        con = sqlite3.connect(CACHE_DB)
+        row = con.execute(
+            "SELECT data, cached_at FROM card_cache WHERE id = ?", (cid,)
+        ).fetchone()
+        con.close()
+        if row and (time.time() - row[1]) < CACHE_TTL:
+            return json.loads(row[0])
+    except Exception as e:
+        print(f"[cache] get error: {e}", file=sys.stderr, flush=True)
+    return None
+
+
+def _cache_set(cid: str, data: dict):
+    try:
+        con = sqlite3.connect(CACHE_DB)
+        con.execute(
+            "INSERT OR REPLACE INTO card_cache (id, data, cached_at) VALUES (?, ?, ?)",
+            (cid, json.dumps(data, ensure_ascii=False), time.time())
+        )
+        con.commit()
+        con.close()
+    except Exception as e:
+        print(f"[cache] set error: {e}", file=sys.stderr, flush=True)
 
 
 # ─── Wiki API fetch ────────────────────────────────────────────────────────────
@@ -778,11 +826,15 @@ class Handler(BaseHTTPRequestHandler):
             pid = p("id")
             if not pid:
                 return self._json({"error": "id required"}, 400)
+            cached = _cache_get(pid)
+            if cached:
+                return self._json(cached)
             if pid.startswith("dmwiki_"):
                 detail = get_card_detail_dmwiki(pid[7:])
             else:
                 detail = get_card_detail(pid)
             if detail:
+                _cache_set(pid, detail)
                 self._json(detail)
             else:
                 self._json({"error": "not found"}, 404)
@@ -825,6 +877,7 @@ if __name__ == "__main__":
         except Exception:
             pass
 
+    _init_cache()
     server = DMServer(("localhost", PORT), Handler)
     sys.stdout.write(f"[DM Proxy] Starting on http://localhost:{PORT}\n")
     sys.stdout.write(f"[DM Proxy] Source: Duel Masters Wiki API\n")
