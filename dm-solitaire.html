@@ -355,23 +355,6 @@ header h1 { font-size: 1.25rem; color: var(--accent); font-weight: 700; white-sp
 .toast-text { white-space: pre-line; line-height: 1.5; }
 @keyframes toastIn { from { transform: translateX(80px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
-/* ─── Card hover preview ─── */
-#card-preview {
-  position: fixed;
-  z-index: 800;
-  pointer-events: none;
-  display: none;
-  width: 200px;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-  background: var(--surface);
-  border: 1px solid var(--border);
-}
-#card-preview img { width: 100%; display: block; min-height: 120px; background: var(--surface2); }
-#card-preview .cp-info { padding: 7px 10px; }
-#card-preview .cp-name { font-size: 0.78rem; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#card-preview .cp-sub { font-size: 0.68rem; color: var(--text-dim); margin-top: 2px; }
 
 /* ─── Scrollbar ─── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -418,7 +401,7 @@ header h1 { font-size: 1.25rem; color: var(--accent); font-weight: 700; white-sp
 .vs-badge { font-size: 0.78rem; padding: 3px 10px; border-radius: 12px; background: var(--accent); color: #fff; font-weight: 700; }
 
 /* ─── Opponent Board ─── */
-#opp-area, #vs-divider, #btn-opp-draw, #btn-opp-grave { display: none; }
+#opp-area, #vs-divider, #btn-opp-draw { display: none; }
 #opp-area .zone-wrap { background: rgba(249,115,22,0.06); border: 1px solid rgba(249,115,22,0.2); }
 #opp-area .zone-hd { color: #fb923c; }
 #opp-area .gc-back { border-color: #f97316; color: #f97316; }
@@ -465,11 +448,23 @@ header h1 { font-size: 1.25rem; color: var(--accent); font-weight: 700; white-sp
 
 /* ─── Revealed zone ─── */
 .revealed-zone {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.55);
+}
+.rz-inner {
   background: var(--surface);
   border: 2px solid #f97316;
   border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 8px;
+  padding: 10px 14px;
+  max-width: min(90vw, 720px);
+  max-height: 80vh;
+  overflow-y: auto;
+  width: 100%;
 }
 .rz-hd {
   font-size: 0.82rem;
@@ -478,8 +473,8 @@ header h1 { font-size: 1.25rem; color: var(--accent); font-weight: 700; white-sp
   margin-bottom: 8px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  flex-wrap: wrap;
 }
 .rz-card {
   display: flex;
@@ -582,28 +577,35 @@ header h1 { font-size: 1.25rem; color: var(--accent); font-weight: 700; white-sp
         <input type="checkbox" id="vs-mode-chk"> 対戦モード
       </label>
       <button class="btn btn-red" onclick="startGame()">ゲーム開始</button>
+      <button class="btn btn-gray" onclick="resetGame()">リセット</button>
+      <button class="btn btn-gray" onclick="undo()">↩ 戻す</button>
       <button class="btn btn-gray" onclick="drawCurrent()">自分ドロー</button>
       <button class="btn btn-gray" onclick="nextTurn()">次ターン</button>
       <button id="btn-opp-draw" class="btn btn-gray" onclick="drawOpponent()">相手ドロー</button>
       <button class="btn btn-gray" onclick="deckTopTo('manaZone')">トップ→マナ</button>
       <button class="btn btn-gray" onclick="deckTopTo('graveyard')">トップ→墓地</button>
       <button class="btn btn-gray" onclick="deckTopTo('shields')">トップ→シールド</button>
-      <button id="btn-opp-grave" class="btn btn-gray" onclick="showOppGraveModal()">相手墓地 (<span id="hdr-opp-grave">0</span>)</button>
       <span style="display:inline-flex;align-items:center;gap:4px;border-left:1px solid var(--border);padding-left:8px;">
-        <input type="number" id="deck-n" value="3" min="1" max="40" style="width:46px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:6px;font-size:0.82rem;">
-        <button class="btn btn-gray" onclick="startReveal(getDeckN(),false,false)">山上N確認</button>
-        <button class="btn btn-gray" onclick="startReveal(getDeckN(),false,true)">山上N表向き</button>
-        <button id="btn-opp-peek" class="btn btn-gray" onclick="startReveal(getDeckN(),true,false)">相手山上N確認</button>
+        <button class="btn btn-gray" onclick="showRevealPicker(false,false)">山上N確認</button>
+        <button class="btn btn-gray" onclick="showRevealPicker(false,true)">山上N表向き</button>
+        <button id="btn-opp-peek" class="btn btn-gray" onclick="showRevealPicker(true,false)">相手山上N確認</button>
       </span>
       <div class="turn-pill"><span id="turn-player-label"></span>ターン: <b id="turn-n">0</b> | 手札: <b id="hand-n">0</b> | マナ: <b id="mana-n">0</b></div>
     </div>
 
     <div id="revealed-zone" class="revealed-zone" style="display:none;">
-      <div class="rz-hd">
-        <span id="revealed-hd">公開中</span>
-        <span style="font-size:0.72rem;font-weight:400;color:var(--text-dim);">— 全カードを処理してください</span>
+      <div class="rz-inner">
+        <div class="rz-hd">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span id="revealed-hd">公開中</span>
+            <span style="font-size:0.72rem;font-weight:400;color:var(--text-dim);">— 全カードを処理してください</span>
+          </div>
+          <label id="rev-all-label" style="display:none;align-items:center;gap:4px;font-size:0.82rem;font-weight:400;cursor:pointer;white-space:nowrap;color:var(--text);">
+            <input type="checkbox" id="rev-all-cb" style="width:14px;height:14px;" onchange="document.querySelectorAll('.rev-cb').forEach(cb=>cb.checked=this.checked)">全選択
+          </label>
+        </div>
+        <div id="revealed-cards-area"></div>
       </div>
-      <div id="revealed-cards-area"></div>
     </div>
     <div id="under-mode-banner" class="under-mode-banner" style="display:none;">
       <span id="under-mode-text">カードを選択中...</span>
@@ -738,14 +740,6 @@ header h1 { font-size: 1.25rem; color: var(--accent); font-weight: 700; white-sp
 <!-- Toasts -->
 <div class="toasts" id="toasts"></div>
 
-<!-- Card hover preview -->
-<div id="card-preview">
-  <img id="cp-img" alt="">
-  <div class="cp-info">
-    <div class="cp-name" id="cp-name"></div>
-    <div class="cp-sub" id="cp-sub"></div>
-  </div>
-</div>
 
 <script>
 // ╔══════════════════════════════════════════════════════════╗
@@ -1202,7 +1196,7 @@ function startGame() {
   if (vsMode) log(`対戦モード: ${p1Name} vs ${p2Name}`);
   else if (oppName) log(`相手デッキ「${oppName}」でゲーム開始`);
   // 相手エリア・関連ボタンの表示切り替え
-  const oppEls = ['opp-area', 'vs-divider', 'btn-opp-draw', 'btn-opp-grave', 'btn-opp-peek'];
+  const oppEls = ['opp-area', 'vs-divider', 'btn-opp-draw', 'btn-opp-peek'];
   oppEls.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -1235,6 +1229,7 @@ function drawOne(count = 1, skipRender = false) {
 }
 
 function nextTurn() {
+  saveUndo();
   G.turn++;
   if (G.vsMode) {
     G.currentPlayer = G.currentPlayer === 1 ? 2 : 1;
@@ -1270,6 +1265,7 @@ function untapAllMana() {
 }
 
 function deckTopTo(toZone) {
+  saveUndo();
   if (G.vsMode && G.currentPlayer === 2) {
     const oppMap = { manaZone: 'oppManaZone', graveyard: 'oppGraveyard', shields: 'oppShields', battleZone: 'oppBattleZone', hand: 'oppHand' };
     const oppZone = oppMap[toZone];
@@ -1314,11 +1310,13 @@ function moveOppWithStack(c, fromZone, toZone, opts = {}) {
 }
 
 function move(fromZone, toZone, iid, opts = {}) {
+  saveUndo();
   const from = getZone(fromZone);
   const idx = from.findIndex(c => c.iid === iid);
   if (idx < 0) return;
   const [card] = from.splice(idx, 1);
   card.tapped = opts.tapped ?? false;
+  if (toZone === 'manaZone' && card.civ === 'multi') card.tapped = true;
   const to = getZone(toZone);
   if (opts.top) to.push(card);
   else if (opts.bottom) to.unshift(card);
@@ -1337,6 +1335,7 @@ function getZone(name) {
 }
 
 function tapToggle(zone, iid) {
+  saveUndo();
   const arr = getZone(zone);
   const c = arr.find(x => x.iid === iid);
   if (!c) return;
@@ -1431,6 +1430,7 @@ function render() {
       oppGraveEmpty.style.display = '';
     }
   }
+  _undoLocked = false;
 }
 
 const _OPP_ZONE_MAP = { 'opp-battle':'oppBattleZone', 'opp-mana':'oppManaZone', 'opp-hand':'oppHand' };
@@ -1569,10 +1569,6 @@ function makeCard(c, zone) {
   });
   d.addEventListener('dragend', () => d.classList.remove('dragging'));
 
-  // Hover preview
-  d.addEventListener('mouseenter', e => showPreview(e, c));
-  d.addEventListener('mousemove',  _posPreview);
-  d.addEventListener('mouseleave', hidePreview);
 
   return d;
 }
@@ -1583,14 +1579,29 @@ function makeCard(c, zone) {
 function makeCardStack(c, zone) {
   if (!c.under || !c.under.length) return makeCard(c, zone);
   const PEEK = document.querySelector('.board.vs-board') ? 13 : 20;
+  const MAX_PEEK = 5;
+  const total = c.under.length;
   const stack = document.createElement('div');
   stack.className = 'card-stack';
-  stack.style.marginLeft = (c.under.length * PEEK) + 'px';
-  [...c.under].reverse().forEach((uc, i) => {
+  // Show at most MAX_PEEK thumbnails; rest represented by "+N" badge
+  const visible = [...c.under].slice(-MAX_PEEK).reverse(); // 上のほうのカードを最大5枚表示
+  const hidden  = total - visible.length;
+  stack.style.marginLeft = (visible.length * PEEK + (hidden ? PEEK : 0)) + 'px';
+  // "+N" badge for hidden cards
+  if (hidden) {
+    const badge = document.createElement('div');
+    badge.className = 'card-under-peek';
+    const leftPx = (visible.length + 1) * PEEK;
+    badge.style.cssText = `left:-${leftPx}px;top:4px;width:100%;position:absolute;z-index:0;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;color:#fff;`;
+    badge.title = `他 ${hidden} 枚`;
+    badge.textContent = `+${hidden}`;
+    stack.appendChild(badge);
+  }
+  visible.forEach((uc, i) => {
     const peek = document.createElement('div');
     peek.className = 'card-under-peek';
-    const leftPx = (c.under.length - i) * PEEK;
-    peek.style.cssText = 'left:-' + leftPx + 'px;top:4px;width:100%;position:absolute;z-index:' + i + ';';
+    const leftPx = (visible.length - i) * PEEK;
+    peek.style.cssText = `left:-${leftPx}px;top:4px;width:100%;position:absolute;z-index:${i + 1};`;
     peek.title = uc.name;
     if (uc.img) {
       const img = document.createElement('img');
@@ -1601,6 +1612,8 @@ function makeCardStack(c, zone) {
     stack.appendChild(peek);
   });
   const mainCard = makeCard(c, zone);
+  // 本体は常にピークより前面
+  mainCard.style.zIndex = total + 10;
   stack.appendChild(mainCard);
   return stack;
 }
@@ -1623,6 +1636,7 @@ function cancelUnderMode() {
 
 function placeUnder(targetCard, targetZone) {
   if (!G.underMode) return;
+  saveUndo();
   const { card, fromZone, isOpp } = G.underMode;
   if (card.iid === targetCard.iid) { cancelUnderMode(); return; }
   const srcArr = isOpp ? getOppZone(fromZone) : getZone(fromZone);
@@ -1693,6 +1707,7 @@ function showStackModal(topCard, zone) {
 }
 
 function moveSelectedUnder(parentIid, zone) {
+  saveUndo();
   const arr = zone === 'oppBattleZone' ? G.opp.battleZone : G.battleZone;
   const parent = arr.find(c => c.iid === parentIid);
   if (!parent || !parent.under) return;
@@ -1800,11 +1815,13 @@ function getOppZone(name) {
 const OPP_ZONE_NAMES = { oppHand:'相手手札', oppBattleZone:'相手BZ', oppManaZone:'相手マナ', oppGraveyard:'相手墓地', oppDeck:'相手デッキ', oppShields:'相手シールド' };
 
 function moveOpp(fromZone, toZone, iid, opts = {}) {
+  saveUndo();
   const from = getOppZone(fromZone);
   const idx = from.findIndex(c => c.iid === iid);
   if (idx < 0) return;
   const [card] = from.splice(idx, 1);
   card.tapped = opts.tapped ?? false;
+  if (toZone === 'oppManaZone' && card.civ === 'multi') card.tapped = true;
   const to = getOppZone(toZone);
   if (opts.top) to.push(card);
   else if (opts.bottom) to.unshift(card);
@@ -1815,6 +1832,7 @@ function moveOpp(fromZone, toZone, iid, opts = {}) {
 }
 
 function tapToggleOpp(zone, iid) {
+  saveUndo();
   const arr = getOppZone(zone);
   const c = arr.find(x => x.iid === iid);
   if (!c) return;
@@ -2129,12 +2147,27 @@ function graveAct(iid) {
   openModal();
 }
 
-function getDeckN() {
-  return Math.max(1, Math.min(40, parseInt(document.getElementById('deck-n')?.value) || 3));
+function showRevealPicker(isOpp, isReveal) {
+  if (G.revealedCards && G.revealedCards.length) { toast('公開中のカードを先に処理してください'); return; }
+  const nums = [1,2,3,4,5,6,7,8,9,10,15,20,'全部'];
+  const label = isReveal ? '山上N枚を表向き公開' : ((isOpp ? '相手' : '') + '山上N枚を確認');
+  document.getElementById('modal-title').textContent = '何枚確認しますか？';
+  document.getElementById('modal-body').innerHTML =
+    '<div style="margin-bottom:6px;font-size:0.82rem;color:var(--text-dim);">' + label + '</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:6px 0;">'
+    + nums.map(n => {
+      const val = n === '全部' ? 99 : n;
+      return '<button class="btn btn-gray" style="width:56px;height:44px;font-size:1.05rem;font-weight:600;" onclick="closeModal();startReveal(' + val + ',' + isOpp + ',' + isReveal + ')">' + n + '</button>';
+    }).join('')
+    + '</div>';
+  openModal();
 }
 
 function startReveal(n, isOpp, isReveal) {
   if (G.revealedCards.length) { toast('公開中のカードを先に処理してください'); return; }
+  saveUndo();
+  // 対戦モードでプレイヤー2の視点のとき自分/相手を反転
+  if (G.vsMode && G.currentPlayer === 2) isOpp = !isOpp;
   const deck = isOpp ? G.opp.deck : G.deck;
   if (!deck.length) { toast((isOpp ? '相手' : '') + 'デッキが空です'); return; }
   const actual = Math.min(n, deck.length);
@@ -2151,18 +2184,29 @@ function renderRevealedZone() {
   if (!G.revealedCards || !G.revealedCards.length) { el.style.display = 'none'; return; }
   el.style.display = '';
   const isOpp = G.revealedFrom === 'oppDeck';
-  const zoneOpts = (isOpp ? _STACK_ZONES_OPP : _STACK_ZONES_PLR)
-    .map(z => '<option value="' + z.val + '">' + z.label + '</option>').join('');
   const backZone = isOpp ? 'oppDeck_top' : 'deck_top';
+  const auto1 = G.revealedCards.length === 1;
   document.getElementById('revealed-hd').textContent =
     G.revealedLabel + ' ' + G.revealedCards.length + '枚（' + (isOpp ? '相手' : '自分') + 'デッキから）';
+  const allLabel = document.getElementById('rev-all-label');
+  if (allLabel) allLabel.style.display = 'flex';
+  const quickZones = isOpp
+    ? [{ val: 'oppHand', label: '相手手札' }, { val: 'oppManaZone', label: '相手マナ' }, { val: 'oppBattleZone', label: '相手BZ' }, { val: 'oppGraveyard', label: '相手墓地' }]
+    : [{ val: 'hand', label: '手札' }, { val: 'manaZone', label: 'マナ' }, { val: 'battleZone', label: 'BZ' }, { val: 'graveyard', label: '墓地' }];
+  const quickVals = quickZones.map(z => z.val);
+  const otherOpts = (isOpp ? _STACK_ZONES_OPP : _STACK_ZONES_PLR)
+    .filter(z => !quickVals.includes(z.val))
+    .map(z => '<option value="' + z.val + '">' + z.label + '</option>').join('');
+  const quickBtns = quickZones
+    .map(z => '<button class="btn btn-gray btn-sm" onclick="moveSelectedRevealed(&#39;' + z.val + '&#39;)">' + z.label + '</button>')
+    .join('');
   document.getElementById('revealed-cards-area').innerHTML =
     '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
     + G.revealedCards.map((c, i) => {
       const civ = CIV[c.civ] || CIV.fire;
       const pos = i === 0 ? 'トップ' : (i + 1) + '枚目';
       return '<div class="rz-card" onclick="revealedCardClick(event,&#39;' + esc(c.iid) + '&#39;)" oncontextmenu="revealedCardCtx(event,&#39;' + esc(c.iid) + '&#39;);event.preventDefault()">'
-        + '<input type="checkbox" class="rev-cb" data-iid="' + esc(c.iid) + '" style="width:14px;height:14px;" onclick="event.stopPropagation()">'
+        + '<input type="checkbox" class="rev-cb" data-iid="' + esc(c.iid) + '" style="width:14px;height:14px;"' + (auto1 ? ' checked' : '') + ' onclick="event.stopPropagation()">'
         + '<div style="width:52px;height:73px;border-radius:5px;overflow:hidden;background:' + civ.color + ';flex-shrink:0;">'
         + (c.img ? '<img src="' + esc(c.img) + '" style="width:100%;height:100%;object-fit:cover;">' : '') + '</div>'
         + '<div style="font-size:0.6rem;text-align:center;width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim);">' + pos + '</div>'
@@ -2170,13 +2214,16 @@ function renderRevealedZone() {
         + '</div>';
     }).join('')
     + '</div>'
-    + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'
-    + '<label style="display:flex;align-items:center;gap:4px;font-size:0.82rem;cursor:pointer;white-space:nowrap;">'
-    + '<input type="checkbox" id="rev-all-cb" style="width:14px;height:14px;" onchange="document.querySelectorAll(&#39;.rev-cb&#39;).forEach(cb=>cb.checked=this.checked)">全選択</label>'
-    + '<select id="rev-dest" style="flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font-size:0.82rem;">' + zoneOpts + '</select>'
-    + '<button class="btn btn-orange btn-sm" onclick="moveSelectedRevealed()">移動</button>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'
     + '<button class="btn btn-gray btn-sm" onclick="returnAllRevealed(&#39;' + backZone + '&#39;)">全部デッキに戻す</button>'
+    + '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">'
+    + quickBtns
+    + '<select id="rev-dest" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:6px;font-size:0.82rem;">' + otherOpts + '</select>'
+    + '<button class="btn btn-orange btn-sm" onclick="moveSelectedRevealed()">移動</button>'
+    + '</div>'
     + '</div>';
+  const allCb = document.getElementById('rev-all-cb');
+  if (allCb) allCb.checked = auto1;
 }
 
 function revealedCardClick(e, iid) {
@@ -2193,7 +2240,7 @@ function revealedCardCtx(e, iid) {
 }
 
 function _applyRevealedCard(card, destZone) {
-  card.tapped = false;
+  card.tapped = (destZone === 'manaZone' || destZone === 'oppManaZone') && card.civ === 'multi';
   if      (destZone === 'hand')           G.hand.push(card);
   else if (destZone === 'battleZone')     G.battleZone.push(card);
   else if (destZone === 'manaZone')       G.manaZone.push(card);
@@ -2211,6 +2258,7 @@ function _applyRevealedCard(card, destZone) {
 }
 
 function moveFromRevealed(iid, destZone) {
+  saveUndo();
   const idx = G.revealedCards.findIndex(c => c.iid === iid);
   if (idx < 0) return;
   const [card] = G.revealedCards.splice(idx, 1);
@@ -2220,8 +2268,9 @@ function moveFromRevealed(iid, destZone) {
   render();
 }
 
-function moveSelectedRevealed() {
-  const dest = document.getElementById('rev-dest')?.value;
+function moveSelectedRevealed(destZone) {
+  saveUndo();
+  const dest = destZone || document.getElementById('rev-dest')?.value;
   const iids = [...document.querySelectorAll('.rev-cb:checked')].map(cb => cb.dataset.iid);
   if (!iids.length) { toast('カードを選択してください'); return; }
   const allZ = [..._STACK_ZONES_PLR, ..._STACK_ZONES_OPP];
@@ -2237,6 +2286,7 @@ function moveSelectedRevealed() {
 }
 
 function returnAllRevealed(destZone) {
+  saveUndo();
   // 元の順序でデッキに戻す（逆順でpushするとトップが先頭に来る）
   [...G.revealedCards].reverse().forEach(c => _applyRevealedCard(c, destZone));
   G.revealedCards = [];
@@ -2245,12 +2295,14 @@ function returnAllRevealed(destZone) {
 }
 
 function shuffleDeck() {
+  saveUndo();
   shuffle(G.deck);
   log('デッキをシャッフルしました');
   closeModal();
 }
 
 function shuffleOppDeck() {
+  saveUndo();
   shuffle(G.opp.deck);
   log('相手デッキをシャッフルしました');
   closeModal();
@@ -2439,6 +2491,58 @@ const PROXY = 'http://localhost:8765';
 const SR_PER_PAGE = 24;
 let _detailCache = {}; // cardId → card detail object
 let _sr = { query: '', all: [], page: 0, proxyPage: 1, done: false, busy: false };
+let _prevG = null;
+let _undoLocked = false;
+
+// ─── Undo ──────────────────────────────────────────────────────────────────
+function saveUndo() {
+  if (_undoLocked) return;
+  _prevG = JSON.parse(JSON.stringify(G));
+  _undoLocked = true;
+}
+function undo() {
+  if (!_prevG) { toast('元に戻せる操作がありません'); return; }
+  G = _prevG; _prevG = null; _undoLocked = false;
+  render();
+  toast('元に戻しました');
+}
+
+// ─── Reset game ────────────────────────────────────────────────────────────
+function resetGame() {
+  if (!G.turn) { toast('ゲームが開始されていません'); return; }
+  document.getElementById('modal-title').textContent = 'ゲームリセット';
+  document.getElementById('modal-body').innerHTML =
+    '<p style="margin-bottom:16px;color:var(--text-dim);">全カードをデッキに戻してシャッフルし、最初からやり直します。</p>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;">' +
+    '<button class="btn btn-gray" onclick="closeModal()">キャンセル</button>' +
+    '<button class="btn btn-red" onclick="closeModal();_doResetGame()">リセット</button>' +
+    '</div>';
+  openModal();
+}
+function _collectAll(zones) {
+  const cards = [];
+  for (const zone of zones)
+    for (const c of zone) {
+      cards.push({ ...c, tapped: false, faceUp: false, under: [] });
+      if (c.under) for (const u of c.under) cards.push({ ...u, tapped: false, faceUp: false, under: [] });
+    }
+  return cards;
+}
+function _doResetGame() {
+  const plr = _collectAll([G.deck, G.hand, G.battleZone, G.manaZone, G.graveyard, G.shields]);
+  const opp = _collectAll([G.opp.deck, G.opp.hand, G.opp.battleZone, G.opp.manaZone, G.opp.graveyard, G.opp.shields]);
+  if (G.revealedCards && G.revealedCards.length) {
+    const dest = G.revealedFrom === 'oppDeck' ? opp : plr;
+    G.revealedCards.forEach(c => dest.push({ ...c, tapped: false, faceUp: false, under: [] }));
+  }
+  G.deck = shuffle(plr); G.hand = []; G.battleZone = []; G.manaZone = []; G.graveyard = []; G.shields = [];
+  G.opp.deck = shuffle(opp); G.opp.hand = []; G.opp.battleZone = []; G.opp.manaZone = []; G.opp.graveyard = []; G.opp.shields = [];
+  G.turn = 1; G.currentPlayer = 1;
+  G.revealedCards = []; G.revealedFrom = null; G.revealedLabel = ''; G.underMode = null;
+  _prevG = null; _undoLocked = false;
+  render();
+  log('─── ゲームリセット ───');
+}
 
 async function checkProxy() {
   try {
@@ -2486,8 +2590,6 @@ async function _srFetchAndRender() {
       if (d.cards && d.cards.length > 0) {
         _sr.all.push(...d.cards);
         _sr.proxyPage++;
-        // Stop loop after one fetch; let user click Next for more
-        break;
       } else {
         _sr.done = true;
       }
@@ -2524,7 +2626,6 @@ function _srRender() {
         ${c.thumb
           ? `<img src="${esc(c.thumb)}" alt="${esc(c.name)}" loading="lazy" onerror="this.style.opacity='0.25'">`
           : `<div class="sr-thumb-ph" style="height:98px;display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:var(--text-dim);">?</div>`}
-        <div class="sr-name">${esc(c.name)}</div>
       </div>`
     ).join('')}</div>
     <div class="sr-pager">

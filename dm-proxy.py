@@ -494,6 +494,14 @@ def _img_from_en_wiki(card_name: str) -> str:
             return thumb
         if len(jpname_norm) >= 8 and nq.endswith(jpname_norm):
             return thumb
+        # Twin Pact: nq is the full twin-pact name (has "/"), page stores one half
+        if "/" in nq and len(jpname_norm) >= 4:
+            if nq.startswith(jpname_norm + "/") or nq.endswith("/" + jpname_norm):
+                return thumb
+        # Twin Pact: nq is one half, page stores the full twin-pact name
+        if "/" in jpname_norm and len(nq) >= 4:
+            if jpname_norm.startswith(nq + "/") or jpname_norm.endswith("/" + nq):
+                return thumb
     return ""
 
 
@@ -552,7 +560,7 @@ def _img_from_official(card_name: str) -> str:
             if not m:
                 continue
             page_name = _norm_fw(m.group(1).strip()).replace(" ", "")
-            if page_name == nq:
+            if page_name == nq or page_name.startswith(nq + "/"):
                 return f"http://localhost:{PORT}/img?url={urllib.parse.quote(OFFICIAL_BASE + thumb_path)}"
         except Exception:
             continue
@@ -641,7 +649,7 @@ def get_card_detail_dmwiki(name: str) -> dict | None:
     # Tabs and ideographic spaces separate fields; cost is in parentheses
     row0 = rows[0]
     m0 = re.match(
-        r'^(.+?)[\s\t　]+[SVRUCLP]{1,3}[+＋]?[\s\t　]+(.+?)[\s\t　]+[（(](\d+)[）)]',
+        r'^(.+?)[\s\t　]+[A-Z]{1,5}[+＋]?[\s\t　]+(.+?)[\s\t　]+[（(](\d+)[）)]',
         row0
     )
     if m0:
