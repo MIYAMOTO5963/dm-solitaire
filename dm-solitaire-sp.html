@@ -22,15 +22,11 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 /* ── Header ── */
 .sp-hd {
   display: flex; align-items: center; gap: 8px;
-  padding: 10px 12px;
-  padding-top: max(10px, env(safe-area-inset-top));
+  padding: 10px 12px; padding-top: max(10px, env(safe-area-inset-top));
   background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
 .sp-hd-title { font-size: 1rem; font-weight: 700; flex: 1; }
-.sp-hd input {
-  flex: 1; background: var(--surface2); border: 1px solid var(--border);
-  color: var(--text); padding: 7px 10px; border-radius: 8px; font-size: 0.95rem; outline: none;
-}
+.sp-hd input { flex: 1; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 8px; font-size: 0.95rem; outline: none; }
 .sp-hd input:focus { border-color: var(--accent); }
 
 /* ── Buttons ── */
@@ -42,11 +38,9 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
 /* ── Deck List ── */
 .list-scroll { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
-.deck-item { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; cursor: pointer; }
-.deck-item:active { background: var(--surface2); }
-.deck-item-name { flex: 1; font-size: 0.95rem; font-weight: 600; }
+.deck-item { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.deck-item-name { flex: 1; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
 .deck-item-count { font-size: 0.8rem; color: var(--text-dim); }
-.deck-item-arrow { color: var(--text-dim); font-size: 1.1rem; }
 .empty-msg { text-align: center; color: var(--text-dim); padding: 48px 20px; font-size: 0.9rem; line-height: 1.8; }
 
 /* ── Deck Edit ── */
@@ -78,7 +72,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .sr-msg { padding: 14px; text-align: center; color: var(--text-dim); font-size: 0.85rem; }
 .sr-more { padding: 10px; text-align: center; color: var(--accent); font-size: 0.82rem; cursor: pointer; }
 
-/* ── Bottom Sheet ── */
+/* ── Deck Edit Bottom Sheet ── */
 .bs-ov { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity .2s; }
 .bs-ov.show { opacity: 1; pointer-events: all; }
 .bs { width: 100%; background: var(--surface); border-radius: 16px 16px 0 0; padding: 20px 16px; padding-bottom: max(20px, env(safe-area-inset-bottom)); transform: translateY(100%); transition: transform .25s ease; }
@@ -93,8 +87,71 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .count-ctrl button { background: none; border: none; color: var(--text); font-size: 1.4rem; padding: 10px 18px; cursor: pointer; line-height: 1; }
 .count-ctrl span { font-size: 1.1rem; font-weight: 700; min-width: 36px; text-align: center; }
 
+/* ── Game Screen ── */
+.game-hd {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 10px; padding-top: max(8px, env(safe-area-inset-top));
+  background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.game-turn { font-size: 0.88rem; font-weight: 700; color: var(--accent); flex: 1; text-align: center; }
+
+.game-board { flex: 1; display: flex; flex-direction: column; gap: 1px; background: var(--border); overflow: hidden; }
+.zone { display: flex; flex-direction: column; background: var(--bg); flex: 1; min-height: 0; }
+.zone-mid { display: flex; flex: 0 0 92px; gap: 1px; }
+.zone-shields { background: var(--bg); flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.zone-sm-wrap { flex: 0 0 62px; background: var(--bg); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.zone-lbl { font-size: 0.6rem; color: var(--text-dim); padding: 3px 6px 1px; flex-shrink: 0; }
+.zone-scroll { display: flex; gap: 5px; overflow-x: auto; padding: 3px 6px 5px; align-items: center; flex: 1; min-width: 0; }
+.zone-scroll::-webkit-scrollbar { display: none; }
+.zone-ph { color: var(--text-dim); font-size: 0.72rem; padding: 4px; align-self: center; flex-shrink: 0; }
+
+/* ── SP Game Card ── */
+.sp-card { width: 50px; height: 70px; border-radius: 5px; overflow: hidden; flex-shrink: 0; cursor: pointer; border: 2px solid transparent; background: var(--surface2); position: relative; }
+.sp-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sp-card.tapped { border-color: var(--accent); opacity: .85; }
+.sp-card-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.44rem; text-align: center; padding: 3px; line-height: 1.3; color: var(--text-dim); }
+.sp-tap-badge { position: absolute; top: 1px; right: 1px; background: var(--accent); color: #fff; font-size: 0.48rem; font-weight: 700; padding: 1px 3px; border-radius: 3px; line-height: 1.2; }
+
+/* Shield stack */
+.shield-stack { display: flex; padding: 4px 6px; align-items: center; flex: 1; overflow: hidden; }
+.shield-stack .sp-card + .sp-card { margin-left: -26px; }
+
+/* Deck / Grave small */
+.sm-card { width: 50px; height: 70px; border-radius: 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid var(--border); }
+.sm-card-back { background: linear-gradient(135deg, #1e3a5f 0%, #0f1e35 100%); border-color: #2d5a8e; }
+.sm-card-count { font-size: 0.75rem; font-weight: 700; }
+.sm-card-lbl { font-size: 0.5rem; color: var(--text-dim); }
+
+/* ── Game Footer ── */
+.game-footer {
+  display: flex; gap: 8px; padding: 8px 12px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  background: var(--surface); border-top: 1px solid var(--border); flex-shrink: 0;
+}
+.game-footer .btn { flex: 1; padding: 13px 8px; font-size: 0.85rem; }
+
+/* ── Context Menu (Game) ── */
+.ctx-ov { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 300; display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.ctx-ov.show { opacity: 1; pointer-events: all; }
+.ctx-sheet { width: 100%; background: var(--surface); border-radius: 16px 16px 0 0; padding: 16px; padding-bottom: max(16px, env(safe-area-inset-bottom)); transform: translateY(100%); transition: transform .25s ease; max-height: 80vh; overflow-y: auto; }
+.ctx-ov.show .ctx-sheet { transform: translateY(0); }
+.ctx-info { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+.ctx-thumb { width: 46px; height: 64px; border-radius: 5px; overflow: hidden; background: var(--surface2); flex-shrink: 0; }
+.ctx-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.ctx-title { font-size: 0.88rem; font-weight: 700; }
+.ctx-sub { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
+.ctx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.ctx-btn { padding: 13px 8px; border: none; border-radius: 10px; background: var(--surface2); color: var(--text); font-size: 0.83rem; font-weight: 600; cursor: pointer; text-align: center; line-height: 1.2; }
+.ctx-btn:active { opacity: .7; }
+.ctx-btn.accent { background: var(--accent); color: #fff; }
+.ctx-btn.wide { grid-column: span 2; }
+.ctx-sep { border: none; border-top: 1px solid var(--border); margin: 12px 0 8px; }
+.ctx-more-btn { width: 100%; padding: 9px; background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--text-dim); font-size: 0.8rem; cursor: pointer; margin-top: 10px; }
+.ctx-secondary { display: none; }
+.ctx-secondary.open { display: block; }
+
 /* ── Toast ── */
-.sp-toast { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.85); color: #fff; padding: 8px 18px; border-radius: 20px; font-size: 0.85rem; z-index: 500; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
+.sp-toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.85); color: #fff; padding: 8px 18px; border-radius: 20px; font-size: 0.85rem; z-index: 500; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
 .sp-toast.show { opacity: 1; }
 </style>
 </head>
@@ -134,7 +191,53 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   </div>
 </div>
 
-<!-- ── Bottom Sheet ── -->
+<!-- ── Screen: Game ── -->
+<div class="screen" id="screen-game">
+  <div class="game-hd">
+    <button class="btn-icon" onclick="confirmLeaveGame()">‹</button>
+    <span class="game-turn" id="game-turn">ターン 1</span>
+    <button class="btn-icon" onclick="undoGame()">↩</button>
+    <button class="btn-icon" onclick="showGameMenu()">⋯</button>
+  </div>
+  <div class="game-board">
+    <div class="zone" id="zone-bz">
+      <div class="zone-lbl">バトルゾーン</div>
+      <div class="zone-scroll" id="bz-scroll"></div>
+    </div>
+    <div class="zone-mid">
+      <div class="zone-shields">
+        <div class="zone-lbl">シールド</div>
+        <div class="shield-stack" id="shield-stack"></div>
+      </div>
+      <div class="zone-sm-wrap" onclick="showDeckCtx()">
+        <div class="sm-card sm-card-back">
+          <div class="sm-card-count" id="deck-count">0</div>
+          <div class="sm-card-lbl">山札</div>
+        </div>
+      </div>
+      <div class="zone-sm-wrap" onclick="showGraveCtx()">
+        <div class="sm-card" id="grave-sm">
+          <div class="sm-card-count" id="grave-count">0</div>
+          <div class="sm-card-lbl">墓地</div>
+        </div>
+      </div>
+    </div>
+    <div class="zone" id="zone-hand">
+      <div class="zone-lbl">手札</div>
+      <div class="zone-scroll" id="hand-scroll"></div>
+    </div>
+    <div class="zone" id="zone-mana">
+      <div class="zone-lbl">マナゾーン</div>
+      <div class="zone-scroll" id="mana-scroll"></div>
+    </div>
+  </div>
+  <div class="game-footer">
+    <button class="btn btn-gray" onclick="drawCard()">ドロー</button>
+    <button class="btn btn-accent" onclick="nextTurn()">ターン終了</button>
+  </div>
+</div>
+
+<!-- ── Deck Edit Bottom Sheet ── -->
 <div class="bs-ov" id="bs-ov" onclick="bsOvClick(event)">
   <div class="bs">
     <div class="bs-info">
@@ -155,6 +258,11 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   </div>
 </div>
 
+<!-- ── Context Menu (Game) ── -->
+<div class="ctx-ov" id="ctx-ov" onclick="ctxOvClick(event)">
+  <div class="ctx-sheet" id="ctx-sheet"></div>
+</div>
+
 <!-- ── Toast ── -->
 <div class="sp-toast" id="sp-toast"></div>
 
@@ -162,31 +270,24 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 'use strict';
 const PROXY = 'https://dm-solitaire-production.up.railway.app';
 
-// ── State ──────────────────────────────────────────────────────
-let savedDecks = {};
-let deckCards  = [];   // [{card:{...}, count:N}]
-let editDeckName = null;  // null = new deck
-let _bsCard = null;
-
-let _sr = { q:'', timer:null, busy:false, proxyPage:1, all:[], done:false };
-let _detailCache = {};
+const CIV_COLOR = {
+  fire:'#c2382b', water:'#1d4ed8', light:'#a16207',
+  dark:'#6d28d9', nature:'#15803d', multi:'#c2410c'
+};
 
 // ── Storage ────────────────────────────────────────────────────
+let savedDecks = {};
 function loadStorage() {
   try { savedDecks = JSON.parse(localStorage.getItem('dm_decks') || '{}'); } catch { savedDecks = {}; }
 }
-function writeStorage() {
-  localStorage.setItem('dm_decks', JSON.stringify(savedDecks));
-}
+function writeStorage() { localStorage.setItem('dm_decks', JSON.stringify(savedDecks)); }
 
 // ── Toast ──────────────────────────────────────────────────────
 let _tt;
 function toast(msg) {
   const el = document.getElementById('sp-toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(_tt);
-  _tt = setTimeout(() => el.classList.remove('show'), 2000);
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(_tt); _tt = setTimeout(() => el.classList.remove('show'), 2000);
 }
 
 // ── Screens ────────────────────────────────────────────────────
@@ -196,6 +297,10 @@ function showScreen(id) {
 }
 
 // ── Deck List ──────────────────────────────────────────────────
+let deckCards = [];
+let editDeckName = null;
+let _bsCard = null;
+
 function renderDeckList() {
   loadStorage();
   const wrap = document.getElementById('list-scroll');
@@ -209,34 +314,28 @@ function renderDeckList() {
     const total = (savedDecks[name] || []).reduce((s, x) => s + (x.count || 0), 0);
     const el = document.createElement('div');
     el.className = 'deck-item';
-    el.innerHTML = `<div class="deck-item-name">${esc(name)}</div><div class="deck-item-count">${total}枚</div><div class="deck-item-arrow">›</div>`;
-    el.onclick = () => openDeck(name);
+    el.innerHTML =
+      `<div class="deck-item-name" onclick="openDeck('${esc(name)}')">${esc(name)}</div>` +
+      `<div class="deck-item-count">${total}枚</div>` +
+      `<button class="btn btn-accent" style="padding:7px 14px;font-size:0.9rem;" onclick="startGame('${esc(name)}')">▶</button>`;
     wrap.appendChild(el);
   });
 }
 
 function newDeck() {
-  editDeckName = null;
-  deckCards = [];
+  editDeckName = null; deckCards = [];
   document.getElementById('edit-name').value = '';
-  renderCardGrid();
-  srReset();
-  showScreen('screen-edit');
+  renderCardGrid(); srReset(); showScreen('screen-edit');
 }
 
 function openDeck(name) {
   editDeckName = name;
   deckCards = JSON.parse(JSON.stringify(savedDecks[name] || []));
   document.getElementById('edit-name').value = name;
-  renderCardGrid();
-  srReset();
-  showScreen('screen-edit');
+  renderCardGrid(); srReset(); showScreen('screen-edit');
 }
 
-function goBack() {
-  showScreen('screen-list');
-  renderDeckList();
-}
+function goBack() { showScreen('screen-list'); renderDeckList(); }
 
 // ── Deck Edit ─────────────────────────────────────────────────
 function deckTotal() { return deckCards.reduce((s, x) => s + x.count, 0); }
@@ -249,11 +348,9 @@ function renderCardGrid() {
   sorted.forEach(({ card, count }) => {
     const el = document.createElement('div');
     el.className = 'cg-card';
-    if (card.img) {
-      el.innerHTML = `<img src="${esc(card.img)}" alt="${esc(card.name)}" loading="lazy">`;
-    } else {
-      el.innerHTML = `<div class="cg-ph">${esc(card.name)}</div>`;
-    }
+    el.innerHTML = card.img
+      ? `<img src="${esc(card.img)}" alt="${esc(card.name)}" loading="lazy">`
+      : `<div class="cg-ph">${esc(card.name)}</div>`;
     el.innerHTML += `<div class="cg-cost">${card.cost ?? '?'}</div><div class="cg-count">×${count}</div>`;
     el.onclick = () => openBs(card);
     grid.appendChild(el);
@@ -265,22 +362,17 @@ function saveDeckSp() {
   if (!n) { toast('デッキ名を入力してください'); return; }
   if (editDeckName && editDeckName !== n) delete savedDecks[editDeckName];
   savedDecks[n] = JSON.parse(JSON.stringify(deckCards));
-  editDeckName = n;
-  writeStorage();
-  toast(`「${n}」を保存しました`);
+  editDeckName = n; writeStorage(); toast(`「${n}」を保存しました`);
 }
 
 function deleteDeckSp() {
   const n = editDeckName;
   if (!n || !savedDecks[n]) { toast('保存済みのデッキがありません'); return; }
   if (!confirm(`「${n}」を削除しますか？`)) return;
-  delete savedDecks[n];
-  writeStorage();
-  goBack();
-  toast(`「${n}」を削除しました`);
+  delete savedDecks[n]; writeStorage(); goBack(); toast(`「${n}」を削除しました`);
 }
 
-// ── Bottom Sheet ──────────────────────────────────────────────
+// ── Deck Edit Bottom Sheet ────────────────────────────────────
 function openBs(card) {
   _bsCard = card;
   const entry = deckCards.find(x => x.card.name === card.name);
@@ -288,151 +380,381 @@ function openBs(card) {
   document.getElementById('bs-sub').textContent = `コスト ${card.cost ?? '?'}  ${civLabel(card.civ)}`;
   document.getElementById('bs-count').textContent = entry ? entry.count : 0;
   const img = document.getElementById('bs-img');
-  if (card.img) { img.src = card.img; img.style.display = ''; }
-  else { img.style.display = 'none'; }
+  if (card.img) { img.src = card.img; img.style.display = ''; } else { img.style.display = 'none'; }
   document.getElementById('bs-ov').classList.add('show');
 }
-
-function bsOvClick(e) {
-  if (e.target === document.getElementById('bs-ov')) closeBs();
-}
+function bsOvClick(e) { if (e.target === document.getElementById('bs-ov')) closeBs(); }
 function closeBs() { document.getElementById('bs-ov').classList.remove('show'); _bsCard = null; }
 
 function bsIncr() {
   if (!_bsCard) return;
   const idx = deckCards.findIndex(x => x.card.name === _bsCard.name);
-  if (idx < 0) deckCards.push({ card: _bsCard, count: 1 });
-  else deckCards[idx].count++;
+  if (idx < 0) deckCards.push({ card: _bsCard, count: 1 }); else deckCards[idx].count++;
   document.getElementById('bs-count').textContent = deckCards.find(x => x.card.name === _bsCard.name).count;
   renderCardGrid();
 }
-
 function bsDecr() {
   if (!_bsCard) return;
   const idx = deckCards.findIndex(x => x.card.name === _bsCard.name);
   if (idx < 0) return;
   deckCards[idx].count--;
   if (deckCards[idx].count <= 0) deckCards.splice(idx, 1);
-  const entry = deckCards.find(x => x.card.name === _bsCard.name);
-  document.getElementById('bs-count').textContent = entry ? entry.count : 0;
+  document.getElementById('bs-count').textContent = (deckCards.find(x => x.card.name === _bsCard.name) || {}).count || 0;
   renderCardGrid();
 }
-
 function bsRemove() {
   if (!_bsCard) return;
   deckCards = deckCards.filter(x => x.card.name !== _bsCard.name);
-  closeBs();
-  renderCardGrid();
-}
-
-function civLabel(c) {
-  return { fire:'火文明', water:'水文明', light:'光文明', dark:'闇文明', nature:'自然文明', multi:'多色' }[c] || '';
+  closeBs(); renderCardGrid();
 }
 
 // ── Search ────────────────────────────────────────────────────
+let _sr = { q:'', timer:null, busy:false, proxyPage:1, all:[], done:false };
+let _detailCache = {};
+
 function srInput(val) {
   document.getElementById('sr-clear').style.display = val ? '' : 'none';
   clearTimeout(_sr.timer);
   if (!val.trim()) { srReset(); return; }
   _sr.timer = setTimeout(() => srStart(val.trim()), 400);
 }
-
-function srClear() {
-  document.getElementById('sr-input').value = '';
-  document.getElementById('sr-clear').style.display = 'none';
-  srReset();
-}
-
+function srClear() { document.getElementById('sr-input').value = ''; document.getElementById('sr-clear').style.display = 'none'; srReset(); }
 function srReset() {
   _sr = { q:'', timer:null, busy:false, proxyPage:1, all:[], done:false };
   document.getElementById('sr-wrap').style.display = 'none';
   document.getElementById('sr-grid').innerHTML = '';
 }
-
 function srStart(q) {
   _sr = { q, timer:null, busy:false, proxyPage:1, all:[], done:false };
   document.getElementById('sr-wrap').style.display = '';
   document.getElementById('sr-grid').innerHTML = '<div class="sr-msg">検索中...</div>';
   srFetch();
 }
-
 async function srFetch() {
   if (_sr.busy || _sr.done) return;
-  _sr.busy = true;
-  const q = _sr.q;
+  _sr.busy = true; const q = _sr.q;
   try {
     const r = await fetch(`${PROXY}/search?q=${encodeURIComponent(q)}&page=${_sr.proxyPage}`, { signal: AbortSignal.timeout(15000) });
     const d = await r.json();
     if (_sr.q !== q) return;
-    if (d.cards && d.cards.length > 0) { _sr.all.push(...d.cards); _sr.proxyPage++; }
-    else { _sr.done = true; }
+    if (d.cards && d.cards.length > 0) { _sr.all.push(...d.cards); _sr.proxyPage++; } else { _sr.done = true; }
   } catch {
     if (_sr.q !== q) return;
     document.getElementById('sr-grid').innerHTML = '<div class="sr-msg" style="color:#f87171">エラー: プロキシを確認してください</div>';
     _sr.busy = false; return;
   }
-  _sr.busy = false;
-  srRender();
+  _sr.busy = false; srRender();
 }
-
 function srRender() {
   const grid = document.getElementById('sr-grid');
   if (!_sr.all.length) { grid.innerHTML = '<div class="sr-msg">見つかりませんでした</div>'; return; }
   grid.innerHTML = '';
   _sr.all.forEach(c => {
     const inDeck = deckCards.find(x => x.card.name === c.name);
-    const el = document.createElement('div');
-    el.className = 'sr-card';
-    el.innerHTML = c.thumb
-      ? `<img src="${esc(c.thumb)}" alt="${esc(c.name)}" loading="lazy">`
-      : `<div class="sr-card-ph">${esc(c.name)}</div>`;
+    const el = document.createElement('div'); el.className = 'sr-card';
+    el.innerHTML = c.thumb ? `<img src="${esc(c.thumb)}" alt="${esc(c.name)}" loading="lazy">` : `<div class="sr-card-ph">${esc(c.name)}</div>`;
     if (inDeck) el.innerHTML += `<div class="sr-badge">×${inDeck.count}</div>`;
-    el.onclick = () => srAdd(c);
-    grid.appendChild(el);
+    el.onclick = () => srAdd(c); grid.appendChild(el);
   });
-  if (!_sr.done) {
-    const more = document.createElement('div');
-    more.className = 'sr-more';
-    more.textContent = 'もっと見る';
-    more.onclick = srFetch;
-    grid.appendChild(more);
-  }
+  if (!_sr.done) { const m = document.createElement('div'); m.className = 'sr-more'; m.textContent = 'もっと見る'; m.onclick = srFetch; grid.appendChild(m); }
 }
-
 function srAdd(c) {
-  // Already in deck → increment directly
   const existing = deckCards.find(x => x.card.name === c.name);
-  if (existing) {
-    existing.count++;
-    renderCardGrid();
-    srRender();
-    toast(`「${c.name}」×${existing.count}`);
-    return;
-  }
-  // Fetch full detail
+  if (existing) { existing.count++; renderCardGrid(); srRender(); toast(`「${c.name}」×${existing.count}`); return; }
   const cached = _detailCache[c.id];
   if (cached) { _srAddCard(cached); return; }
   fetch(`${PROXY}/detail?id=${encodeURIComponent(c.id)}`, { signal: AbortSignal.timeout(20000) })
-    .then(r => r.json())
-    .then(d => { _detailCache[c.id] = d; _srAddCard(d); })
+    .then(r => r.json()).then(d => { _detailCache[c.id] = d; _srAddCard(d); })
     .catch(() => toast('カード取得に失敗しました'));
 }
-
 function _srAddCard(detail) {
-  const card = {
-    id: detail.id, name: detail.name, civ: detail.civ, cost: detail.cost,
-    type: detail.type, power: detail.power, img: detail.img,
-    race: detail.race, text: detail.text, nameEn: detail.nameEn
-  };
+  const card = { id:detail.id, name:detail.name, civ:detail.civ, cost:detail.cost, type:detail.type, power:detail.power, img:detail.img, race:detail.race, text:detail.text, nameEn:detail.nameEn };
   const idx = deckCards.findIndex(x => x.card.name === card.name);
-  if (idx < 0) deckCards.push({ card, count: 1 });
-  else deckCards[idx].count++;
-  renderCardGrid();
-  srRender();
-  toast(`「${card.name}」を追加`);
+  if (idx < 0) deckCards.push({ card, count:1 }); else deckCards[idx].count++;
+  renderCardGrid(); srRender(); toast(`「${card.name}」を追加`);
+}
+
+// ── Game State ────────────────────────────────────────────────
+let G = null;
+let _prevG = null;
+let _undoLocked = false;
+
+function startGame(deckName) {
+  loadStorage();
+  const raw = savedDecks[deckName];
+  if (!raw || !raw.length) { toast('デッキが空です'); return; }
+  let uid = 0;
+  let expanded = [];
+  raw.forEach(({ card, count }) => {
+    for (let i = 0; i < count; i++) {
+      expanded.push({ ...JSON.parse(JSON.stringify(card)), iid: String(uid++), tapped: false });
+    }
+  });
+  shuffle(expanded);
+  G = { deck: expanded, hand: [], battleZone: [], manaZone: [], graveyard: [], shields: [], turn: 1, uid };
+  for (let i = 0; i < 5 && G.deck.length; i++) G.shields.push(G.deck.pop());
+  for (let i = 0; i < 5 && G.deck.length; i++) G.hand.push(G.deck.pop());
+  _prevG = null; _undoLocked = false;
+  showScreen('screen-game');
+  render();
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+// ── Undo ──────────────────────────────────────────────────────
+function saveUndo() {
+  if (_undoLocked) return;
+  _prevG = JSON.parse(JSON.stringify(G)); _undoLocked = true;
+}
+function undoGame() {
+  if (!_prevG) { toast('元に戻す操作がありません'); return; }
+  G = _prevG; _prevG = null; _undoLocked = false;
+  render(); toast('元に戻しました');
+}
+
+// ── Render ────────────────────────────────────────────────────
+function render() {
+  _undoLocked = false;
+  document.getElementById('game-turn').textContent = `ターン ${G.turn}`;
+  renderBZ(); renderShields(); renderHand(); renderMana(); renderDeckGrave();
+}
+
+function renderBZ() {
+  const el = document.getElementById('bz-scroll'); el.innerHTML = '';
+  if (!G.battleZone.length) { el.innerHTML = '<div class="zone-ph">空</div>'; return; }
+  G.battleZone.forEach(c => el.appendChild(makeCardEl(c, 'battleZone')));
+}
+function renderShields() {
+  const el = document.getElementById('shield-stack'); el.innerHTML = '';
+  G.shields.forEach((c, i) => {
+    const d = document.createElement('div');
+    d.className = 'sp-card';
+    d.style.cssText = `background:linear-gradient(135deg,#1e3a5f,#0f1e35);border-color:#2d5a8e;z-index:${i+1};`;
+    d.innerHTML = '<div class="sp-card-ph" style="color:#4a7ab5;font-size:0.65rem;font-weight:700;">DM</div>';
+    d.onclick = () => showCtx(c, 'shields');
+    el.appendChild(d);
+  });
+  for (let i = G.shields.length; i < 5; i++) {
+    const d = document.createElement('div');
+    d.style.cssText = `width:50px;height:70px;border-radius:5px;border:1px dashed var(--border);flex-shrink:0;${i > 0 ? 'margin-left:-26px;' : ''}`;
+    el.appendChild(d);
+  }
+}
+function renderHand() {
+  const el = document.getElementById('hand-scroll'); el.innerHTML = '';
+  if (!G.hand.length) { el.innerHTML = '<div class="zone-ph">空</div>'; return; }
+  G.hand.forEach(c => el.appendChild(makeCardEl(c, 'hand')));
+}
+function renderMana() {
+  const el = document.getElementById('mana-scroll'); el.innerHTML = '';
+  if (!G.manaZone.length) { el.innerHTML = '<div class="zone-ph">空</div>'; return; }
+  G.manaZone.forEach(c => el.appendChild(makeCardEl(c, 'manaZone')));
+}
+function renderDeckGrave() {
+  document.getElementById('deck-count').textContent = G.deck.length;
+  document.getElementById('grave-count').textContent = G.graveyard.length;
+  const graveSm = document.getElementById('grave-sm');
+  const top = G.graveyard[G.graveyard.length - 1];
+  if (top?.img) {
+    graveSm.style.cssText = `background-image:url(${top.img});background-size:cover;background-position:center;`;
+  } else {
+    graveSm.style.cssText = '';
+  }
+}
+
+function makeCardEl(card, fromZone) {
+  const el = document.createElement('div');
+  el.className = 'sp-card' + (card.tapped ? ' tapped' : '');
+  if (card.img) {
+    el.innerHTML = `<img src="${esc(card.img)}" alt="${esc(card.name)}" loading="lazy">`;
+  } else {
+    const color = CIV_COLOR[card.civ] || '#374151';
+    el.style.borderColor = color;
+    el.style.background = color + '22';
+    el.innerHTML = `<div class="sp-card-ph">${esc(card.name)}</div>`;
+  }
+  if (card.tapped) el.innerHTML += '<div class="sp-tap-badge">T</div>';
+  el.onclick = () => showCtx(card, fromZone);
+  return el;
+}
+
+// ── Game Actions ──────────────────────────────────────────────
+function move(fromZone, toZone, iid) {
+  saveUndo();
+  const arr = G[fromZone];
+  const idx = arr.findIndex(c => c.iid === iid);
+  if (idx < 0) return;
+  const [card] = arr.splice(idx, 1);
+  card.tapped = false;
+  if (toZone === 'manaZone' && card.civ === 'multi') card.tapped = true;
+  if (toZone === 'deck_top') G.deck.push(card);
+  else if (toZone === 'deck_bottom') G.deck.unshift(card);
+  else G[toZone].push(card);
+  closeCtx(); render();
+}
+
+function drawCard() {
+  if (!G.deck.length) { toast('デッキが空です'); return; }
+  saveUndo(); G.hand.push(G.deck.pop()); render(); toast('1枚ドロー');
+}
+
+function nextTurn() {
+  saveUndo(); G.turn++;
+  [...G.battleZone, ...G.manaZone].forEach(c => c.tapped = false);
+  if (G.deck.length) G.hand.push(G.deck.pop());
+  render(); toast(`ターン ${G.turn}`);
+}
+
+function tapToggle(iid) {
+  const card = [...G.battleZone, ...G.manaZone].find(c => c.iid === iid);
+  if (!card) return;
+  saveUndo(); card.tapped = !card.tapped; closeCtx(); render();
+}
+
+function deckTopTo(zone) {
+  if (!G.deck.length) return;
+  saveUndo();
+  const card = G.deck.pop();
+  card.tapped = false;
+  if (zone === 'manaZone' && card.civ === 'multi') card.tapped = true;
+  G[zone].push(card);
+  closeCtx(); render();
+}
+
+function shuffleDeckSp() {
+  saveUndo(); shuffle(G.deck); closeCtx(); render(); toast('シャッフルしました');
+}
+
+// ── Context Menu ──────────────────────────────────────────────
+const CTX_CFG = {
+  hand:       { primary:['battleZone','manaZone','graveyard','shields'], secondary:['deck_top','deck_bottom'] },
+  battleZone: { primary:['hand','manaZone','graveyard'], secondary:['shields','deck_top','deck_bottom'], tap:true },
+  manaZone:   { primary:['hand','battleZone','graveyard'], secondary:['shields','deck_top','deck_bottom'], tap:true },
+  graveyard:  { primary:['hand','battleZone','manaZone'], secondary:['shields','deck_top','deck_bottom'] },
+  shields:    { primary:['hand','graveyard'], secondary:['battleZone','manaZone','deck_top','deck_bottom'] },
+};
+const ZONE_LBL = {
+  hand:'手札', battleZone:'バトルゾーン', manaZone:'マナゾーン',
+  graveyard:'墓地', shields:'シールド', deck_top:'山札トップ', deck_bottom:'山札ボトム'
+};
+
+function showCtx(card, fromZone) {
+  const cfg = CTX_CFG[fromZone] || { primary:[], secondary:[] };
+  const mb = (zone) => `<button class="ctx-btn" onclick="move('${fromZone}','${zone}','${esc(card.iid)}')">${ZONE_LBL[zone] || zone}へ</button>`;
+
+  const thumb = card.img
+    ? `<img src="${esc(card.img)}" alt="">`
+    : `<div style="width:100%;height:100%;background:${CIV_COLOR[card.civ]||'#374151'}33;display:flex;align-items:center;justify-content:center;font-size:0.44rem;text-align:center;padding:3px;color:var(--text-dim);">${esc(card.name)}</div>`;
+
+  let html = `
+    <div class="ctx-info">
+      <div class="ctx-thumb">${thumb}</div>
+      <div>
+        <div class="ctx-title">${esc(card.name)}</div>
+        <div class="ctx-sub">コスト ${card.cost ?? '?'}　${civLabel(card.civ)}</div>
+      </div>
+    </div>
+    <div class="ctx-grid">`;
+
+  if (cfg.tap) html += `<button class="ctx-btn accent wide" onclick="tapToggle('${esc(card.iid)}')">${card.tapped ? 'アンタップ' : 'タップ'}</button>`;
+  cfg.primary.forEach(z => { html += mb(z); });
+  html += '</div>';
+
+  if (cfg.secondary.length) {
+    html += `<button class="ctx-more-btn" id="ctx-more-btn" onclick="toggleCtxMore()">その他 ▼</button>
+    <div class="ctx-secondary" id="ctx-secondary">
+      <hr class="ctx-sep">
+      <div class="ctx-grid">`;
+    cfg.secondary.forEach(z => { html += mb(z); });
+    html += '</div></div>';
+  }
+
+  document.getElementById('ctx-sheet').innerHTML = html;
+  document.getElementById('ctx-ov').classList.add('show');
+}
+
+function toggleCtxMore() {
+  const sec = document.getElementById('ctx-secondary');
+  const btn = document.getElementById('ctx-more-btn');
+  if (!sec) return;
+  sec.classList.toggle('open');
+  btn.textContent = sec.classList.contains('open') ? 'その他 ▲' : 'その他 ▼';
+}
+
+function showDeckCtx() {
+  let html = `
+    <div class="ctx-info">
+      <div class="ctx-thumb" style="background:linear-gradient(135deg,#1e3a5f,#0f1e35);display:flex;align-items:center;justify-content:center;color:#4a7ab5;font-weight:700;font-size:0.75rem;">DM</div>
+      <div>
+        <div class="ctx-title">山札 (${G.deck.length}枚)</div>
+        <div class="ctx-sub">山札トップのカードを移動</div>
+      </div>
+    </div>
+    <div class="ctx-grid">
+      <button class="ctx-btn" onclick="deckTopTo('hand')">手札へ</button>
+      <button class="ctx-btn" onclick="deckTopTo('manaZone')">マナへ</button>
+      <button class="ctx-btn" onclick="deckTopTo('battleZone')">バトルゾーンへ</button>
+      <button class="ctx-btn" onclick="deckTopTo('graveyard')">墓地へ</button>
+    </div>
+    <hr class="ctx-sep">
+    <div class="ctx-grid">
+      <button class="ctx-btn wide" onclick="shuffleDeckSp()">シャッフル</button>
+    </div>`;
+  document.getElementById('ctx-sheet').innerHTML = html;
+  document.getElementById('ctx-ov').classList.add('show');
+}
+
+function showGraveCtx() {
+  if (!G.graveyard.length) { toast('墓地は空です'); return; }
+  showCtx(G.graveyard[G.graveyard.length - 1], 'graveyard');
+}
+
+function closeCtx() {
+  document.getElementById('ctx-ov').classList.remove('show');
+}
+function ctxOvClick(e) {
+  if (e.target === document.getElementById('ctx-ov')) closeCtx();
+}
+
+function showGameMenu() {
+  document.getElementById('ctx-sheet').innerHTML = `
+    <div class="ctx-title" style="margin-bottom:14px;">メニュー</div>
+    <div class="ctx-grid">
+      <button class="ctx-btn wide" onclick="resetGameSp()">ゲームリセット</button>
+      <button class="ctx-btn wide" onclick="confirmLeaveGame()">デッキ選択に戻る</button>
+    </div>`;
+  document.getElementById('ctx-ov').classList.add('show');
+}
+
+function resetGameSp() {
+  if (!confirm('ゲームをリセットしますか？')) return;
+  closeCtx();
+  const all = [...G.deck,...G.hand,...G.battleZone,...G.manaZone,...G.graveyard,...G.shields]
+    .map(c => ({ ...c, tapped:false }));
+  shuffle(all);
+  G.deck = all; G.hand = []; G.battleZone = []; G.manaZone = []; G.graveyard = []; G.shields = []; G.turn = 1;
+  for (let i = 0; i < 5 && G.deck.length; i++) G.shields.push(G.deck.pop());
+  for (let i = 0; i < 5 && G.deck.length; i++) G.hand.push(G.deck.pop());
+  _prevG = null; _undoLocked = false;
+  render(); toast('リセットしました');
+}
+
+function confirmLeaveGame() {
+  closeCtx();
+  if (confirm('デッキ選択に戻りますか？\n（ゲームの状態は失われます）')) {
+    showScreen('screen-list'); renderDeckList();
+  }
 }
 
 // ── Util ──────────────────────────────────────────────────────
+function civLabel(c) {
+  return { fire:'火文明', water:'水文明', light:'光文明', dark:'闇文明', nature:'自然文明', multi:'多色' }[c] || '';
+}
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
