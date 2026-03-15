@@ -11,12 +11,18 @@ dm-solitaire.html と同じフォルダで実行してください。
 データソース: https://duelmasters.fandom.com (MediaWiki API)
 """
 
+import hashlib
 import html as _html
 import json
 import os
+import queue
+import random
 import re
+import secrets
 import sqlite3
+import string
 import sys
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -30,10 +36,124 @@ WIKI_HEADERS = {"User-Agent": "DMSolitaireTool/1.0 (local proxy)"}
 
 _dmwiki_cache: dict[str, list[dict]] = {}   # normalized_query → all matched cards
 
+# ─── Account management ──────────────────────────────────────────────────────────
+
+def hash_pin(pin: str, salt: str = None) -> tuple[str, str]:
+    """PIN をハッシュ化。(ハッシュ値の16進数, ソルトの16進数) を返す"""
+    if salt is None:
+        salt_bytes = secrets.token_bytes(16)
+    else:
+        salt_bytes = bytes.fromhex(salt)
+    h = hashlib.pbkdf2_hmac('sha256', pin.encode(), salt_bytes, 100000)
+    return (h.hex(), salt_bytes.hex())
+
+def verify_pin(pin: str, stored_hash: str, stored_salt: str) -> bool:
+    """PIN が正しいかどうかを検証"""
+    computed_hash, _ = hash_pin(pin, stored_salt)
+    return computed_hash == stored_hash
+
+# ─── Rate Limiting ────────────────────────────────────────────────────────────
+
+_rate_limit: dict[str, dict] = {}  # ip → {count: int, reset_at: float}
+_rate_limit_lock = threading.Lock()
+RATE_LIMIT_WINDOW = 300  # 5 minutes
+RATE_LIMIT_MAX_ATTEMPTS = 15  # attempts per window
+
+def check_rate_limit(ip: str) -> bool:
+    """Check if IP has exceeded rate limit. Returns True if allowed, False if blocked."""
+    now = time.time()
+    with _rate_limit_lock:
+        if ip not in _rate_limit:
+            _rate_limit[ip] = {"count": 1, "reset_at": now + RATE_LIMIT_WINDOW}
+            return True
+        
+        entry = _rate_limit[ip]
+        if now >= entry["reset_at"]:
+            # Window expired, reset
+            entry["count"] = 1
+            entry["reset_at"] = now + RATE_LIMIT_WINDOW
+            return True
+        
+        # Still in window
+        if entry["count"] >= RATE_LIMIT_MAX_ATTEMPTS:
+            return False  # Blocked
+        
+        entry["count"] += 1
+        return True
+
+_profiles: dict[str, dict] = {}  # username → {pin_hash, pin_salt, last_deck}
+_profiles_lock = threading.Lock()
+_decks: dict[str, dict[str, dict]] = {}  # username → {deck_name: deck_data}
+_decks_lock = threading.Lock()
+
+# ─── Room management (online multiplayer) ──────────────────────────────────────────────────────────
+
+_rooms: dict[str, dict] = {}
+_rooms_lock = threading.Lock()
+ROOM_TTL = 6 * 3600  # 6 hours
+
+
+def _gen_room_id() -> str:
+    """Generate a 6-character alphanumeric room code."""
+    chars = string.ascii_uppercase + string.digits
+    while True:
+        rid = ''.join(random.choices(chars, k=6))
+        with _rooms_lock:
+            if rid not in _rooms:
+                return rid
+
+
+def _make_room(rid: str) -> dict:
+    return {
+        'id': rid,
+        'p1': {'q': queue.Queue(), 'pub': None},
+        'p2': {'q': queue.Queue(), 'pub': None},
+        'p1_name': '',
+        'p2_name': '',
+        'created_at': time.time(),
+        'lock': threading.Lock(),
+    }
+
+
+def _push_event(room: dict, p: str, event: str, data: dict):
+    """Push an SSE event to a player's queue."""
+    room[p]['q'].put_nowait({'event': event, 'data': data})
+
+
+def _clean_rooms():
+    """Remove rooms older than ROOM_TTL. Runs in a background thread."""
+    while True:
+        time.sleep(3600)
+        now = time.time()
+        with _rooms_lock:
+            to_del = [rid for rid, r in _rooms.items()
+                      if now - r['created_at'] > ROOM_TTL]
+            for rid in to_del:
+                del _rooms[rid]
+        if to_del:
+            print(f"[rooms] cleaned {len(to_del)} expired room(s)", flush=True)
+
 # ─── SQLite card detail cache ──────────────────────────────────────────────────
 
 CACHE_DB  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dm_cache.db")
 CACHE_TTL = 90 * 86400  # 90 days
+
+
+def _verify_db_integrity():
+    """Verify SQLite database integrity on startup."""
+    try:
+        con = sqlite3.connect(CACHE_DB)
+        result = con.execute("PRAGMA integrity_check").fetchone()
+        con.close()
+        if result and result[0] == "ok":
+            print("[db] integrity check: OK", flush=True)
+            return True
+        else:
+            print(f"[db] integrity check FAILED: {result}", file=sys.stderr, flush=True)
+            return False
+    except Exception as e:
+        print(f"[db] integrity check error: {e}", file=sys.stderr, flush=True)
+        return False
 
 
 def _init_cache():
@@ -45,8 +165,103 @@ def _init_cache():
             cached_at REAL NOT NULL
         )
     """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS profiles (
+            username TEXT PRIMARY KEY,
+            pin_hash TEXT NOT NULL,
+            pin_salt TEXT NOT NULL,
+            last_deck TEXT
+        )
+    """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS decks (
+            username TEXT NOT NULL,
+            deck_name TEXT NOT NULL,
+            deck_data TEXT NOT NULL,
+            PRIMARY KEY (username, deck_name)
+        )
+    """)
     con.commit()
     con.close()
+    
+    # Verify DB integrity
+    _verify_db_integrity()
+    
+    # Load profiles and decks from DB into memory
+    _load_from_db()
+
+
+def _load_from_db():
+    """Load profiles and decks from SQLite into memory on startup."""
+    global _profiles, _decks
+    try:
+        con = sqlite3.connect(CACHE_DB)
+        
+        # Load profiles
+        rows = con.execute("SELECT username, pin_hash, pin_salt, last_deck FROM profiles").fetchall()
+        for username, pin_hash, pin_salt, last_deck in rows:
+            _profiles[username] = {"pin_hash": pin_hash, "pin_salt": pin_salt, "last_deck": last_deck or ""}
+        
+        # Load decks with error recovery
+        rows = con.execute("SELECT username, deck_name, deck_data FROM decks").fetchall()
+        skip_count = 0
+        for username, deck_name, deck_data in rows:
+            try:
+                if username not in _decks:
+                    _decks[username] = {}
+                _decks[username][deck_name] = json.loads(deck_data)
+            except json.JSONDecodeError as je:
+                print(f"[db] corrupt deck skipped: {username}/{deck_name} - {je}", file=sys.stderr, flush=True)
+                skip_count += 1
+        
+        con.close()
+        deck_count = sum(len(d) for d in _decks.values())
+        if _profiles or _decks:
+            msg = f"[db] Loaded {len(_profiles)} profiles, {deck_count} decks"
+            if skip_count > 0:
+                msg += f" ({skip_count} corrupt skipped)"
+            print(msg, flush=True)
+    except Exception as e:
+        print(f"[db] load error: {e}", file=sys.stderr, flush=True)
+
+
+def _save_profile_to_db(username: str, pin_hash: str, pin_salt: str, last_deck: str = ""):
+    """Save or update profile in SQLite."""
+    try:
+        con = sqlite3.connect(CACHE_DB)
+        con.execute(
+            "INSERT OR REPLACE INTO profiles (username, pin_hash, pin_salt, last_deck) VALUES (?, ?, ?, ?)",
+            (username, pin_hash, pin_salt, last_deck)
+        )
+        con.commit()
+        con.close()
+    except Exception as e:
+        print(f"[db] save profile error: {e}", file=sys.stderr, flush=True)
+
+
+def _save_deck_to_db(username: str, deck_name: str, deck_data: dict):
+    """Save or update deck in SQLite."""
+    try:
+        con = sqlite3.connect(CACHE_DB)
+        con.execute(
+            "INSERT OR REPLACE INTO decks (username, deck_name, deck_data) VALUES (?, ?, ?)",
+            (username, deck_name, json.dumps(deck_data, ensure_ascii=False))
+        )
+        con.commit()
+        con.close()
+    except Exception as e:
+        print(f"[db] save deck error: {e}", file=sys.stderr, flush=True)
+
+
+def _delete_deck_from_db(username: str, deck_name: str):
+    """Delete deck from SQLite."""
+    try:
+        con = sqlite3.connect(CACHE_DB)
+        con.execute("DELETE FROM decks WHERE username = ? AND deck_name = ?", (username, deck_name))
+        con.commit()
+        con.close()
+    except Exception as e:
+        print(f"[db] delete deck error: {e}", file=sys.stderr, flush=True)
 
 
 def _cache_get(cid: str) -> dict | None:
@@ -794,13 +1009,298 @@ class Handler(BaseHTTPRequestHandler):
 
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def do_OPTIONS(self):
         self.send_response(200)
         self._cors()
         self.end_headers()
+
+    # ── POST handler ──────────────────────────────────────────────────────────
+
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length) if length > 0 else b"{}"
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            return self._json({"error": "invalid JSON"}, 400)
+
+        # POST /room/create  { name }
+        if parsed.path == "/room/create":
+            rid  = _gen_room_id()
+            room = _make_room(rid)
+            room['p1_name'] = data.get('name', 'Player 1')[:20]
+            with _rooms_lock:
+                _rooms[rid] = room
+            print(f"[rooms] created {rid} by {room['p1_name']}", flush=True)
+            self._json({"room": rid, "p": "p1"})
+
+        # POST /room/join  { room, name }
+        elif parsed.path == "/room/join":
+            rid = data.get("room", "").strip().upper()
+            with _rooms_lock:
+                room = _rooms.get(rid)
+            if not room:
+                return self._json({"error": "room not found"}, 404)
+            with room['lock']:
+                if room['p2_name']:
+                    return self._json({"error": "room is full"}, 409)
+                room['p2_name'] = data.get('name', 'Player 2')[:20]
+                _push_event(room, 'p1', 'joined', {'p2_name': room['p2_name']})
+            print(f"[rooms] {room['p2_name']} joined {rid}", flush=True)
+            self._json({"ok": True, "p": "p2", "p1_name": room['p1_name']})
+
+        # POST /action  { room, p, type, ...state }
+        elif parsed.path == "/action":
+            rid   = data.get("room", "")
+            p     = data.get("p", "")
+            atype = data.get("type", "state")
+            with _rooms_lock:
+                room = _rooms.get(rid)
+            if not room:
+                return self._json({"error": "room not found"}, 404)
+            if p not in ("p1", "p2"):
+                return self._json({"error": "invalid p"}, 400)
+            op = "p2" if p == "p1" else "p1"
+            with room['lock']:
+                room[p]['pub'] = data
+                if atype == "turn_end":
+                    _push_event(room, op, "turn_end", data)
+                else:
+                    _push_event(room, op, "opponent_state", data)
+            self._json({"ok": True})
+
+        # POST /chat  { room, p, message }
+        elif parsed.path == "/chat":
+            rid = data.get("room", "")
+            p = data.get("p", "")
+            msg = data.get("message", "").strip()[:200]
+            with _rooms_lock:
+                room = _rooms.get(rid)
+            if not room:
+                return self._json({"error": "room not found"}, 404)
+            if p not in ("p1", "p2"):
+                return self._json({"error": "invalid p"}, 400)
+            if not msg:
+                return self._json({"error": "message empty"}, 400)
+            player_name = room['p1_name'] if p == 'p1' else room['p2_name']
+            op = "p2" if p == "p1" else "p1"
+            with room['lock']:
+                _push_event(room, p, 'chat_message', {'p': p, 'name': player_name, 'msg': msg})
+                _push_event(room, op, 'chat_message', {'p': p, 'name': player_name, 'msg': msg})
+            self._json({"ok": True})
+
+        # POST /profile/create  { username, pin, last_deck }
+        elif parsed.path == "/profile/create":
+            # Rate limiting
+            client_ip = self.headers.get("X-Forwarded-For", self.client_address[0]).split(",")[0].strip()
+            if not check_rate_limit(client_ip):
+                return self._json({"error": "too many requests"}, 429)
+            
+            username = data.get("username", "").strip()[:20]
+            pin = str(data.get("pin", "")).strip()
+            last_deck = data.get("last_deck", "")[:20]
+            
+            if not username or not pin or len(pin) != 4 or not pin.isdigit():
+                return self._json({"error": "invalid username or pin"}, 400)
+            
+            with _profiles_lock:
+                if username in _profiles:
+                    return self._json({"error": "username already exists"}, 409)
+                # PIN をハッシュ化して保存
+                pin_hash, pin_salt = hash_pin(pin)
+                _profiles[username] = {"pin_hash": pin_hash, "pin_salt": pin_salt, "last_deck": last_deck}
+            
+            # Save to database
+            _save_profile_to_db(username, pin_hash, pin_salt, last_deck)
+            
+            print(f"[profile] created {username}", flush=True)
+            self._json({"ok": True})
+
+        # POST /profile/login  { username, pin }
+        elif parsed.path == "/profile/login":
+            # Rate limiting
+            client_ip = self.headers.get("X-Forwarded-For", self.client_address[0]).split(",")[0].strip()
+            if not check_rate_limit(client_ip):
+                return self._json({"error": "too many requests"}, 429)
+            
+            username = data.get("username", "").strip()
+            pin = str(data.get("pin", "")).strip()
+            
+            if not username:
+                return self._json({"error": "username required"}, 400)
+            
+            with _profiles_lock:
+                profile = _profiles.get(username)
+            
+            if not profile or not verify_pin(pin, profile["pin_hash"], profile["pin_salt"]):
+                return self._json({"error": "invalid username or pin"}, 401)
+            
+            print(f"[profile] login {username}", flush=True)
+            self._json({"ok": True, "last_deck": profile.get("last_deck", "")})
+
+        # POST /profile/update  { username, pin, last_deck }
+        elif parsed.path == "/profile/update":
+            # Rate limiting
+            client_ip = self.headers.get("X-Forwarded-For", self.client_address[0]).split(",")[0].strip()
+            if not check_rate_limit(client_ip):
+                return self._json({"error": "too many requests"}, 429)
+            
+            username = data.get("username", "").strip()
+            pin = str(data.get("pin", "")).strip()
+            last_deck = data.get("last_deck", "")[:20]
+            
+            if not username or not pin:
+                return self._json({"error": "username and pin required"}, 400)
+            
+            with _profiles_lock:
+                profile = _profiles.get(username)
+            
+            if not profile or not verify_pin(pin, profile["pin_hash"], profile["pin_salt"]):
+                return self._json({"error": "invalid username or pin"}, 401)
+            
+            with _profiles_lock:
+                _profiles[username]["last_deck"] = last_deck
+            
+            # Save to database
+            _save_profile_to_db(username, profile["pin_hash"], profile["pin_salt"], last_deck)
+            
+            print(f"[profile] updated {username}", flush=True)
+            self._json({"ok": True})
+
+        # POST /deck/save  { username, pin, deck_name, deck_data }
+        elif parsed.path == "/deck/save":
+            username = data.get("username", "").strip()
+            pin = str(data.get("pin", "")).strip()
+            deck_name = data.get("deck_name", "").strip()[:50]
+            deck_data = data.get("deck_data", {})
+            
+            if not username or not pin:
+                return self._json({"error": "username and pin required"}, 400)
+            if not deck_name:
+                return self._json({"error": "deck_name required"}, 400)
+            
+            with _profiles_lock:
+                profile = _profiles.get(username)
+            
+            if not profile or not verify_pin(pin, profile["pin_hash"], profile["pin_salt"]):
+                return self._json({"error": "invalid username or pin"}, 401)
+            
+            with _decks_lock:
+                if username not in _decks:
+                    _decks[username] = {}
+                _decks[username][deck_name] = deck_data
+            
+            # Save to database
+            _save_deck_to_db(username, deck_name, deck_data)
+            
+            print(f"[deck] saved {username}/{deck_name}", flush=True)
+            self._json({"ok": True})
+
+        # GET /deck/list?username=X&pin=Y
+        elif parsed.path == "/deck/list":
+            username = parsed_qs.get("username", [""])[0].strip()
+            pin = str(parsed_qs.get("pin", [""])[0]).strip()
+            
+            if not username or not pin:
+                return self._json({"error": "username and pin required"}, 400)
+            
+            with _profiles_lock:
+                profile = _profiles.get(username)
+            
+            if not profile or not verify_pin(pin, profile["pin_hash"], profile["pin_salt"]):
+                return self._json({"error": "invalid username or pin"}, 401)
+            
+            with _decks_lock:
+                deck_list = list(_decks.get(username, {}).keys())
+            
+            print(f"[deck] list {username} ({len(deck_list)} decks)", flush=True)
+            self._json({"ok": True, "decks": deck_list})
+
+        # GET /deck/get?username=X&pin=Y&deck_name=Z
+        elif parsed.path == "/deck/get":
+            username = parsed_qs.get("username", [""])[0].strip()
+            pin = str(parsed_qs.get("pin", [""])[0]).strip()
+            deck_name = parsed_qs.get("deck_name", [""])[0].strip()
+            
+            if not username or not pin or not deck_name:
+                return self._json({"error": "username, pin, deck_name required"}, 400)
+            
+            with _profiles_lock:
+                profile = _profiles.get(username)
+            
+            if not profile or not verify_pin(pin, profile["pin_hash"], profile["pin_salt"]):
+                return self._json({"error": "invalid username or pin"}, 401)
+            
+            with _decks_lock:
+                deck_data = _decks.get(username, {}).get(deck_name)
+            
+            if not deck_data:
+                return self._json({"error": "deck not found"}, 404)
+            
+            print(f"[deck] get {username}/{deck_name}", flush=True)
+            self._json({"ok": True, "deck_data": deck_data})
+
+        # POST /deck/delete  { username, pin, deck_name }
+        elif parsed.path == "/deck/delete":
+            username = data.get("username", "").strip()
+            pin = str(data.get("pin", "")).strip()
+            deck_name = data.get("deck_name", "").strip()
+            
+            if not username or not pin or not deck_name:
+                return self._json({"error": "username, pin, deck_name required"}, 400)
+            
+            with _profiles_lock:
+                profile = _profiles.get(username)
+            
+            if not profile or not verify_pin(pin, profile["pin_hash"], profile["pin_salt"]):
+                return self._json({"error": "invalid username or pin"}, 401)
+            
+            with _decks_lock:
+                if username in _decks and deck_name in _decks[username]:
+                    del _decks[username][deck_name]
+            
+            # Delete from database
+            _delete_deck_from_db(username, deck_name)
+            
+            print(f"[deck] deleted {username}/{deck_name}", flush=True)
+            self._json({"ok": True})
+
+        else:
+            self._json({"error": "unknown endpoint"}, 404)
+
+    # ── SSE stream ────────────────────────────────────────────────────────────
+
+    def _sse_stream(self, room: dict, p: str):
+        """Hold the connection open and stream SSE events to the client."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Accel-Buffering", "no")
+        self._cors()
+        self.end_headers()
+        # If opponent already sent state, push it immediately
+        op = "p2" if p == "p1" else "p1"
+        if room[op]['pub']:
+            self._sse_write("opponent_state", room[op]['pub'])
+        q = room[p]['q']
+        try:
+            while True:
+                try:
+                    msg = q.get(timeout=20)
+                    self._sse_write(msg['event'], msg['data'])
+                except queue.Empty:
+                    self._sse_write("ping", {})
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass
+
+    def _sse_write(self, event: str, data: dict):
+        body = f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+        self.wfile.write(body.encode("utf-8"))
+        self.wfile.flush()
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -812,6 +1312,25 @@ class Handler(BaseHTTPRequestHandler):
         # /ping
         if parsed.path == "/ping":
             self._json({"status": "ok", "port": PORT, "source": "dmwiki"})
+
+        # /test/rate-limit-status (for debugging)
+        elif parsed.path == "/test/rate-limit-status":
+            with _rate_limit_lock:
+                status = {
+                    "rate_limit_entries": len(_rate_limit),
+                    "entries": {ip: {"count": e["count"], "reset_at": int(e["reset_at"])} for ip, e in _rate_limit.items()}
+                }
+            self._json(status)
+
+        # /events?room=XXXX&p=p1  (SSE stream)
+        elif parsed.path == "/events":
+            rid    = p("room", "").strip().upper()
+            player = p("p", "")
+            with _rooms_lock:
+                room = _rooms.get(rid)
+            if not room or player not in ("p1", "p2"):
+                return self._json({"error": "room not found"}, 404)
+            self._sse_stream(room, player)
 
         # /search?q=...&page=1
         elif parsed.path == "/search":
@@ -879,6 +1398,7 @@ if __name__ == "__main__":
             pass
 
     _init_cache()
+    threading.Thread(target=_clean_rooms, daemon=True, name="room-cleaner").start()
     server = DMServer(("0.0.0.0", PORT), Handler)
     sys.stdout.write(f"[DM Proxy] Starting on http://localhost:{PORT}\n")
     sys.stdout.write(f"[DM Proxy] Source: Duel Masters Wiki API\n")

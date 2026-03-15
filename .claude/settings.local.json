@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:dm.takaratomy.co.jp)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:db.duelmasters.us)",
+      "WebFetch(domain:note.com)",
+      "WebFetch(domain:ssl.syncsearch.jp)",
+      "Bash(python:*)",
+      "Bash(sleep 2:*)",
+      "Bash(sleep 3:*)",
+      "Bash(cmd:*)",
+      "Bash(sleep 3 && curl -s http://localhost:8765/ping 2>&1)",
+      "Bash(netstat -ano | grep \":8765\" 2>&1)",
+      "Bash(taskkill:*)",
+      "Bash(true:*)",
+      "WebFetch(domain:pro.syncsearch.jp)",
+      "WebFetch(domain:syncsearch.jp)",
+      "WebFetch(domain:suggest.syncsearch.jp)",
+      "Bash(iconv:*)",
+      "Bash(powershell:*)",
+      "Bash(python3:*)",
+      "Bash(curl:*)",
+      "Bash(echo:*)",
+      "Bash(PYTHONUTF8=1 python:*)",
+      "Bash(cat:*)",
+      "Bash(netstat:*)",
+      "Bash(start cmd:*)",
+      "Bash(head:*)",
+      "Bash(cat:)",
+      "Bash(cd C:\\\\Users\\\\user\\\\OneDrive\\\\デスクトップ\\\\VM:*)",
+      "Bash(cd:*)",
+      "Bash(node:*)",
+      "Bash(comm:*)"
+    ]
+  }
+}

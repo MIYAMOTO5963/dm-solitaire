@@ -1,799 +1,4 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DM 一人回しツール</title>
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg: #f0f2f5;
-  --surface: #ffffff;
-  --surface2: #edf0f5;
-  --surface3: #a0aab8;
-  --accent: #dc2626;
-  --accent2: #ea580c;
-  --text: #111827;
-  --text-dim: #6b7280;
-  --border: #d8dce8;
-  --civ-light: #eab308;
-  --civ-water: #3b82f6;
-  --civ-dark: #a855f7;
-  --civ-fire: #ef4444;
-  --civ-nature: #22c55e;
-  --civ-multi: #f97316;
-  --card-w: 76px;
-  --card-h: 108px;
-}
-body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', 'Hiragino Sans', sans-serif; min-height: 100vh; }
 
-/* ─── Header ─── */
-header {
-  background: var(--surface);
-  border-bottom: 2px solid var(--accent);
-  padding: 10px 20px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  position: sticky;
-  top: 0;
-  z-index: 200;
-}
-header h1 { font-size: 1.25rem; color: var(--accent); font-weight: 700; white-space: nowrap; }
-.tab { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 5px 14px; border-radius: 20px; cursor: pointer; font-size: 0.85rem; transition: all .15s; }
-.tab.active, .tab:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
-
-/* ─── Layout ─── */
-.page { display: none; padding: 12px 16px; }
-.page.show { display: block; }
-#page-deck.show { display: flex; flex-direction: column; height: calc(100vh - 54px); overflow: hidden; padding: 12px 16px; }
-
-/* ─── Deck Builder ─── */
-.builder-grid { display: grid; grid-template-columns: 400px 220px 1fr; gap: 12px; flex: 1; min-height: 0; }
-@media(max-width:900px){ .builder-grid { grid-template-columns: 1fr 1fr; } }
-@media(max-width:600px){ .builder-grid { grid-template-columns: 1fr; } }
-.builder-grid > .panel { overflow-y: auto; min-height: 0; }
-
-.panel { background: var(--surface); border-radius: 10px; padding: 12px 14px; }
-.panel-title { font-size: 0.95rem; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 14px; }
-
-.fg { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
-.fg label { font-size: 0.75rem; color: var(--text-dim); }
-.fg input, .fg select {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 7px 10px;
-  border-radius: 6px;
-  font-size: 0.875rem;
-}
-.fg input:focus, .fg select:focus { outline: none; border-color: var(--accent); }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-
-/* Buttons */
-.btn { display: inline-flex; align-items: center; gap: 4px; padding: 7px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: filter .15s; white-space: nowrap; }
-.btn:hover { filter: brightness(1.12); }
-.btn-red { background: var(--accent); color: #fff; }
-.btn-orange { background: var(--accent2); color: #fff; }
-.btn-gray { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
-.btn-green { background: #16a34a; color: #fff; }
-.btn-sm { padding: 4px 10px; font-size: 0.78rem; }
-.btn-xs { padding: 2px 7px; font-size: 0.72rem; }
-
-/* Deck list */
-.deck-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.deck-count { font-size: 0.85rem; }
-.deck-count b { color: var(--accent); }
-.card-rows { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
-
-/* Deck image grid cell */
-.dk-cell {
-  position: relative;
-  aspect-ratio: 5/7;
-  border-radius: 4px;
-  overflow: hidden;
-  cursor: pointer;
-  background: var(--surface3);
-  transition: outline .1s;
-}
-.dk-cell:hover { outline: 2px solid var(--accent); }
-.dk-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.dk-ph {
-  position: absolute; inset: 0;
-  display: flex; align-items: flex-end; padding: 2px;
-}
-.dk-ph-name { font-size: 0.42rem; color: rgba(255,255,255,.95); line-height: 1.2; word-break: break-all; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
-.dk-rm {
-  position: absolute; top: 2px; right: 2px;
-  background: rgba(0,0,0,.65); color: #fff;
-  border: none; border-radius: 3px;
-  font-size: 0.65rem; width: 15px; height: 15px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; opacity: 0; transition: opacity .15s; padding: 0; line-height: 1;
-}
-.dk-cell:hover .dk-rm { opacity: 1; }
-
-.deck-mgr { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
-.deck-mgr select { flex: 1; min-width: 120px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 8px; border-radius: 6px; font-size: 0.85rem; }
-.deck-mgr input { width: 130px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 8px; border-radius: 6px; font-size: 0.85rem; }
-
-.deck-mgr2 { display: flex; gap: 6px; margin-bottom: 10px; }
-
-/* ── Search panel layout ── */
-.search-panel { display: flex; flex-direction: column; }
-.search-panel #search-results { /* auto-sized by content; panel scrolls */ }
-
-/* ── Deck panel layout ── */
-.deck-panel { display: flex; flex-direction: column; }
-.deck-panel .card-rows { flex: 1; min-height: 0; overflow: hidden; }
-.deck-stats { display: flex; gap: 16px; align-items: flex-end; margin-top: 8px; flex-shrink: 0; }
-.deck-stats-civ { flex: 0 0 180px; }
-.deck-stats-curve { flex: 0 0 300px; min-width: 0; }
-
-/* ── Civ horizontal bar chart ── */
-.civ-chart { display: flex; flex-direction: column; gap: 4px; }
-.civ-row { display: flex; align-items: center; gap: 5px; }
-.civ-row-label { width: 22px; font-size: 0.68rem; color: var(--text-dim); text-align: right; flex-shrink: 0; }
-.civ-row-track { flex: 1; height: 12px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
-.civ-row-fill { height: 100%; border-radius: 2px; transition: width .2s; }
-.civ-row-count { font-size: 0.68rem; color: var(--text-dim); min-width: 16px; }
-
-/* ── Name list ── */
-.nl-wrap { width: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; margin-top: 12px; }
-.nl-row { display: flex; align-items: center; gap: 4px; padding: 4px 5px; border-radius: 5px; background: var(--surface2); font-size: 0.78rem; }
-.nl-row:hover { background: var(--border); }
-.nl-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.nl-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.nl-name:hover { color: var(--accent); }
-.nl-cnt { font-weight: 700; color: var(--accent); min-width: 16px; text-align: center; font-size: 0.82rem; }
-.nl-adj { background: var(--surface); border: 1px solid var(--border); border-radius: 3px; width: 19px; height: 19px; cursor: pointer; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; color: var(--text); line-height: 1; padding: 0; flex-shrink: 0; }
-.nl-adj:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
-/* ── Mana curve ── */
-#cost-curve { }
-.cc-graph { display: flex; align-items: flex-end; gap: 4px; height: 72px; }
-.cc-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; flex: 1; }
-.cc-bar { width: 100%; background: #4b8eff; border-radius: 3px 3px 0 0; min-height: 3px; transition: height .2s; }
-.cc-label { font-size: 0.6rem; color: var(--text-dim); margin-top: 3px; line-height: 1; }
-.cc-count { font-size: 0.6rem; color: #4b8eff; font-weight: 700; margin-bottom: 2px; line-height: 1; }
-
-/* ─── Game Board ─── */
-.game-wrap { width: 100%; }
-.game-ctrl {
-  background: var(--surface);
-  border-radius: 10px;
-  padding: 12px 16px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 14px;
-  position: sticky;
-  top: 52px;
-  z-index: 150;
-  box-shadow: 0 2px 8px rgba(0,0,0,.15);
-}
-.turn-pill { margin-left: auto; background: var(--surface2); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; }
-.turn-pill b { color: var(--accent2); }
-
-.board { display: flex; flex-direction: column; gap: 10px; }
-#opp-area    { order: 1; display: flex; flex-direction: column; gap: 10px; }
-#vs-divider  { order: 2; }
-#player-area { order: 3; display: flex; flex-direction: column; gap: 10px; }
-.log-wrap    { order: 4; }
-/* p2-view: P2エリアが手前(下)、P1エリアが奥(上) */
-.board.p2-view #opp-area    { order: 3; flex-direction: column-reverse; }
-.board.p2-view #vs-divider  { order: 2; }
-.board.p2-view #player-area { order: 1; flex-direction: column-reverse; }
-/* P2ターン: 相手カードは正向き */
-.board.p2-view #opp-area .gc         { transform: none; }
-.board.p2-view #opp-area .gc:hover   { transform: translateY(-5px); box-shadow: 0 10px 24px rgba(0,0,0,.5); z-index: 20; }
-.board.p2-view #opp-area .gc.tapped  { transform: rotate(16deg) translateX(8px); margin-right: 8px; }
-.board.p2-view #opp-area .gc.tapped:hover { transform: rotate(16deg) translateX(8px) translateY(-5px); }
-/* P2ターン: 自分(P1)カードは180度回転 */
-.board.p2-view #player-area .gc         { transform: rotate(180deg); }
-.board.p2-view #player-area .gc:hover   { transform: rotate(180deg) translateY(5px); box-shadow: 0 10px 24px rgba(0,0,0,.5); z-index: 20; }
-.board.p2-view #player-area .gc.tapped  { transform: rotate(180deg) rotate(16deg) translateX(8px); margin-right: 8px; }
-.board.p2-view #player-area .gc.tapped:hover { transform: rotate(180deg) rotate(16deg) translateX(8px) translateY(5px); }
-.zone-wrap { background: var(--surface); border-radius: 10px; padding: 12px; }
-.zone-hd { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
-.zone-cnt { background: var(--surface2); padding: 1px 7px; border-radius: 10px; font-size: 0.72rem; }
-.zone-cards { display: flex; flex-wrap: wrap; gap: 8px; min-height: 172px; align-items: flex-start; }
-.zone-cards.drag-over { outline: 2px dashed var(--accent); background: rgba(99,102,241,0.1); border-radius: 8px; }
-.gc.dragging { opacity: 0.4; }
-.zone-empty { width: 100%; text-align: center; color: var(--text-dim); font-size: 0.8rem; font-style: italic; padding: 20px 0; }
-
-/* Card element */
-.gc {
-  flex: 1 1 115px;
-  min-width: 70px;
-  max-width: 155px;
-  aspect-ratio: 5 / 7;
-  height: auto;
-  border-radius: 7px;
-  cursor: pointer;
-  position: relative;
-  container-type: inline-size;
-  transition: transform .18s, box-shadow .18s;
-  user-select: none;
-}
-.gc:hover { transform: translateY(-5px); box-shadow: 0 10px 24px rgba(0,0,0,.6); z-index: 20; }
-.gc.tapped { transform: rotate(16deg) translateX(8px); margin-right: 8px; }
-.gc.tapped:hover { transform: rotate(16deg) translateX(8px) translateY(-5px); }
-
-/* Opponent cards face toward the player */
-#opp-area .gc         { transform: rotate(180deg); }
-#opp-area .gc:hover   { transform: rotate(180deg) translateY(5px); box-shadow: 0 10px 24px rgba(0,0,0,.5); z-index: 20; }
-#opp-area .gc.tapped  { transform: rotate(180deg) rotate(16deg) translateX(8px); margin-right: 8px; }
-#opp-area .gc.tapped:hover { transform: rotate(180deg) rotate(16deg) translateX(8px) translateY(5px); }
-
-.gc-back {
-  width: 100%; height: 100%;
-  border-radius: 7px;
-  background: linear-gradient(135deg, #1e3a5f 0%, #0d2137 100%);
-  border: 2px solid #2563eb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: clamp(1rem, 4cqw, 1.8rem);
-  color: #2563eb;
-  font-weight: 900;
-}
-.gc-face {
-  width: 100%; height: 100%;
-  border-radius: 7px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 2px solid rgba(255,255,255,0.18);
-}
-.gc-art {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  background: #000;
-}
-.gc-art-ph {
-  width: 100%; height: 100%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: clamp(1.2rem, 5cqw, 2.2rem);
-}
-.gc-info {
-  flex: 1;
-  background: rgba(0,0,0,.72);
-  padding: 3px 4px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-.gc-name { font-size: clamp(0.48rem, 1.1cqw, 0.68rem); color: #f3f4f6; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.gc-stat { display: flex; justify-content: space-between; font-size: clamp(0.45rem, 1cqw, 0.62rem); color: #d1d5db; }
-
-/* Mana zone – smaller cards */
-#manaZone { min-height: 100px; }
-#oppManaZone { min-height: 100px; }
-
-/* Shields */
-.shields-row { display: grid; grid-template-columns: repeat(5, minmax(60px, 120px)); gap: 8px; }
-.shield-slot { aspect-ratio: 5/7; width: 100%; border: 2px dashed var(--surface3); border-radius: 7px; display: flex; align-items: center; justify-content: center; color: var(--surface3); font-size: 0.7rem; }
-
-/* Bottom row: hand + side piles */
-.bottom-row { display: grid; grid-template-columns: 1fr 155px; gap: 10px; align-items: start; }
-#handZone { min-height: 0; }
-@media(max-width:600px){ .bottom-row { grid-template-columns: 1fr; } }
-
-.pile-btn {
-  width: 100%;
-  aspect-ratio: 5/7;
-  border-radius: 8px;
-  border: 2px solid var(--border);
-  background: var(--surface2);
-  color: var(--text-dim);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: 0.75rem;
-  transition: border-color .15s;
-  position: relative;
-  overflow: hidden;
-  padding: 0;
-}
-.pile-btn:hover { border-color: var(--accent); color: var(--text); }
-.pile-btn .pile-icon { font-size: 1.6rem; }
-.pile-btn .pile-n { font-size: 1.1rem; font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
-
-/* Log */
-.log-box { max-height: 130px; overflow-y: auto; }
-.log-line { font-size: 0.76rem; color: var(--text-dim); padding: 2px 0; border-bottom: 1px solid var(--border); }
-.log-line:first-child { color: var(--text); }
-.log-t { color: var(--text-dim); margin-right: 5px; }
-
-/* ─── Context Menu ─── */
-.ctx {
-  position: fixed;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 5px 0;
-  z-index: 1000;
-  min-width: 168px;
-  box-shadow: 0 6px 24px rgba(0,0,0,.6);
-}
-.ctx-item { padding: 8px 16px; cursor: pointer; font-size: 0.83rem; white-space: nowrap; }
-.ctx-item:hover { background: var(--surface2); }
-.ctx-item.red { color: #f87171; }
-.ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
-
-/* ─── Modal ─── */
-.overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.72);
-  z-index: 500;
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px;
-}
-.modal {
-  background: var(--surface);
-  border-radius: 12px;
-  padding: 22px;
-  max-width: 580px;
-  width: 100%;
-  max-height: 80vh;
-  overflow-y: auto;
-  position: relative;
-}
-.modal h3 { margin-bottom: 14px; color: var(--accent); }
-.modal-x { position: absolute; top: 12px; right: 14px; background: none; border: none; color: var(--text-dim); font-size: 1.2rem; cursor: pointer; }
-
-/* ─── Toast ─── */
-.toasts { position: fixed; bottom: 18px; right: 18px; z-index: 2000; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
-.toast { background: var(--surface); border-left: 4px solid var(--accent); padding: 12px 16px; border-radius: 8px; font-size: 1rem; box-shadow: 0 4px 16px rgba(0,0,0,.5); animation: toastIn .25s ease; max-width: 320px; }
-.toast-inner { display: flex; gap: 12px; align-items: center; }
-.toast-img { height: 72px; border-radius: 5px; flex-shrink: 0; }
-.toast-text { white-space: pre-line; line-height: 1.5; }
-@keyframes toastIn { from { transform: translateX(80px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-
-/* ─── Scrollbar ─── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
-
-/* ─── Card Search (proxy) ─── */
-.search-status { display: flex; align-items: center; gap: 7px; font-size: 0.78rem; margin-bottom: 10px; color: var(--text-dim); }
-.sdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; transition: background .3s; }
-.sdot.on  { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
-.sdot.off { background: #6b7280; }
-.sdot.err { background: #ef4444; }
-.search-row { display: flex; gap: 6px; margin-bottom: 10px; }
-.search-row input { flex: 1; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 6px; font-size: 0.875rem; }
-.search-row input:focus { outline: none; border-color: var(--accent); }
-.sr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
-.sr-card { cursor: pointer; border-radius: 5px; overflow: hidden; border: 2px solid transparent; transition: border-color .15s; background: var(--surface2); aspect-ratio: 5/7; position: relative; }
-.sr-card:hover { border-color: var(--accent); }
-.sr-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-.sr-pager { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding-top: 6px; gap: 8px; }
-.sr-card .sr-name { position: absolute; bottom: 0; left: 0; right: 0; font-size: 0.48rem; color: rgba(255,255,255,.9); padding: 2px 3px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: rgba(0,0,0,.55); }
-.sr-msg { text-align: center; padding: 18px 0; color: var(--text-dim); font-size: 0.82rem; }
-.sr-pager { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; gap: 8px; }
-.sr-page-info { font-size: 0.78rem; color: var(--text-dim); white-space: nowrap; }
-.sr-pager .btn:disabled { opacity: 0.35; cursor: not-allowed; filter: none; }
-.detail-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 16px; }
-.detail-row img { width: 108px; border-radius: 8px; background: var(--surface2); min-height: 151px; }
-.detail-tbl { flex: 1; min-width: 160px; font-size: 0.85rem; border-collapse: collapse; }
-.detail-tbl td { padding: 4px 8px 4px 0; vertical-align: top; }
-.detail-tbl td:first-child { color: var(--text-dim); white-space: nowrap; width: 56px; }
-.detail-acts { display: flex; gap: 8px; flex-wrap: wrap; }
-.card-text { margin-top: 12px; font-size: 0.8rem; line-height: 1.7; color: var(--text); border-top: 1px solid var(--border); padding-top: 10px; white-space: pre-wrap; }
-
-/* ─── VS Turn Transition ─── */
-.turn-cover {
-  position: fixed; inset: 0;
-  background: #0d1117;
-  z-index: 900;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 18px; padding: 32px; text-align: center;
-}
-.turn-cover h2 { font-size: 2rem; color: var(--accent); font-weight: 800; }
-.turn-cover p  { color: #8b949e; font-size: 0.95rem; line-height: 1.7; max-width: 360px; }
-.vs-badge { font-size: 0.78rem; padding: 3px 10px; border-radius: 12px; background: var(--accent); color: #fff; font-weight: 700; }
-
-/* ─── Opponent Board ─── */
-#opp-area, #vs-divider, #btn-opp-draw { display: none; }
-#opp-area .zone-wrap { background: rgba(249,115,22,0.06); border: 1px solid rgba(249,115,22,0.2); }
-#opp-area .zone-hd { color: #fb923c; }
-#opp-area .gc-back { border-color: #f97316; color: #f97316; }
-/* oppManaZone sizing inherited from mana zone rules above */
-.vs-divider { text-align: center; color: var(--text-dim); font-size: 0.78rem; letter-spacing: .15em; padding: 6px 0; border-top: 1px dashed var(--border); border-bottom: 1px dashed var(--border); margin: 4px 0; }
-.opp-deck-wrap { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-dim); }
-.opp-deck-wrap select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 5px 8px; border-radius: 6px; font-size: 0.82rem; max-width: 140px; }
-
-/* ─── VS mode compact layout ─── */
-.board.vs-board { gap: 6px; }
-.board.vs-board #opp-area,
-.board.vs-board #player-area { gap: 6px; }
-.board.vs-board .zone-wrap { padding: 6px 8px; }
-.board.vs-board .zone-hd { font-size: 0.6rem; margin-bottom: 4px; }
-.board.vs-board .zone-cnt { font-size: 0.6rem; padding: 1px 5px; }
-.board.vs-board .zone-cards { gap: 4px; min-height: 96px; }
-.board.vs-board .zone-empty { padding: 12px 0; font-size: 0.72rem; }
-.board.vs-board #manaZone,
-.board.vs-board #oppManaZone { min-height: 52px; }
-.board.vs-board .gc { flex: 1 1 64px; min-width: 38px; max-width: 86px; }
-.board.vs-board .shields-row { gap: 4px; grid-template-columns: repeat(5, minmax(32px, 66px)); }
-.board.vs-board .shield-slot { font-size: 0.6rem; }
-.board.vs-board .bottom-row { grid-template-columns: 1fr 92px; gap: 6px; }
-.board.vs-board .zone-row { gap: 6px !important; }
-.board.vs-board .pile-col { width: 92px !important; }
-.board.vs-board .vs-divider { padding: 2px 0; margin: 1px 0; }
-.board.vs-board .log-box { max-height: 72px; }
-.board.vs-board .btn-xs { padding: 1px 6px; font-size: 0.65rem; }
-
-/* ─── Card Stack (under) ─── */
-.card-stack { position: relative; flex: 1 1 115px; min-width: 70px; max-width: 155px; }
-.card-stack > .gc { flex: none; min-width: unset; max-width: unset; width: 100%; position: relative; z-index: 2; }
-.card-under-peek { position: absolute; top: 4px; aspect-ratio: 5/7; border-radius: 7px;
-  overflow: hidden; border: 2px solid rgba(255,255,255,.35); background: #1e3a5f; }
-.card-under-peek img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.gc.under-target { outline: 3px solid #f97316; outline-offset: 3px; cursor: crosshair !important; }
-.card-stack .gc.under-target { outline: 3px solid #f97316; }
-.under-mode-banner {
-  background: linear-gradient(90deg,#f97316,#ea580c); color:#fff; padding:8px 14px;
-  border-radius:8px; margin-bottom:8px; display:flex; align-items:center;
-  justify-content:space-between; font-size:0.85rem; font-weight:600;
-}
-.board.vs-board .card-stack { flex: 1 1 64px; min-width: 38px; max-width: 86px; }
-
-/* ─── Revealed zone ─── */
-.revealed-zone {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,0.55);
-}
-.rz-inner {
-  background: var(--surface);
-  border: 2px solid #f97316;
-  border-radius: 10px;
-  padding: 10px 14px;
-  max-width: min(90vw, 720px);
-  max-height: 80vh;
-  overflow-y: auto;
-  width: 100%;
-}
-.rz-hd {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #f97316;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.rz-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  background: var(--surface2);
-  border-radius: 6px;
-  padding: 5px;
-  cursor: pointer;
-  border: 2px solid transparent;
-  transition: border-color .15s;
-}
-.rz-card:hover { border-color: #f97316; }
-.board.vs-board .rz-card img { width: 38px; height: 53px; }
-
-/* ─── Turn Notification ─── */
-@keyframes pulse-border { 0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); } 50% { box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); } }
-.board.vs-board.turn-pulse { animation: pulse-border 0.8s; }
-
-/* ─── Operation Log Panel ─── */
-.ol-log-panel { position: absolute; right: 0; top: 0; width: 280px; height: 100%; background: var(--surface); border-left: 2px solid var(--accent); overflow-y: auto; padding: 12px; display: none; flex-direction: column; gap: 8px; z-index: 100; }
-.ol-log-panel.show { display: flex; }
-.ol-log-title { font-size: 0.95rem; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; white-space: nowrap; }
-.ol-log-entries { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
-.ol-log-entry { font-size: 0.8rem; color: var(--text-dim); padding: 6px 8px; border-left: 3px solid var(--border); background: var(--surface2); border-radius: 4px; }
-.ol-log-entry.p1 { border-left-color: #3b82f6; }
-.ol-log-entry.p2 { border-left-color: #ef4444; }
-.ol-log-player { font-weight: 700; color: var(--text); }
-.ol-log-empty { text-align: center; color: var(--text-dim); padding: 20px; font-size: 0.85rem; }
-
-/* ─── Chat Panel ─── */
-.ol-chat-panel { position: absolute; left: 0; top: 0; width: 320px; height: 100%; background: var(--surface); border-right: 2px solid var(--accent); overflow-y: auto; padding: 12px; display: none; flex-direction: column; gap: 8px; z-index: 100; }
-.ol-chat-panel.show { display: flex; }
-.ol-chat-title { font-size: 0.95rem; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; white-space: nowrap; }
-.ol-chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
-.ol-chat-msg { font-size: 0.85rem; padding: 8px 12px; border-radius: 8px; }
-.ol-chat-msg.p1 { background: #dbeafe; color: #111827; }
-.ol-chat-msg.p2 { background: #fee2e2; color: #111827; }
-.ol-chat-from { font-weight: 700; font-size: 0.8rem; margin-bottom: 2px; }
-.ol-chat-input-row { display: flex; gap: 8px; }
-.ol-chat-input-row input { flex: 1; padding: 8px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.875rem; outline: none; }
-.ol-chat-input-row input:focus { border-color: var(--accent); }
-.ol-chat-input-row button { padding: 8px 12px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; white-space: nowrap; }
-</style>
-</head>
-<body>
-
-<header>
-  <h1>DM 一人回し</h1>
-  <button class="tab active" id="tab-deck" onclick="switchPage('deck')">デッキ管理</button>
-  <button class="tab" id="tab-game" onclick="switchPage('game')">ゲームボード</button>
-</header>
-
-<!-- ═══════════════════════════════════════════ DECK PAGE ═══ -->
-<div class="page show" id="page-deck">
-  <div class="builder-grid">
-
-    <!-- カード追加フォーム -->
-    <div class="panel search-panel">
-      <div class="panel-title">公式サイトから検索</div>
-      <div class="search-status">
-        <div class="sdot off" id="proxy-dot"></div>
-        <span id="proxy-msg">確認中… dm-proxy.py を起動してください</span>
-      </div>
-      <div class="search-row">
-        <input id="search-q" type="text" placeholder="カード名 (例: ボルメテウス)"
-               onkeydown="if(event.key==='Enter')doSearch()">
-        <button class="btn btn-gray btn-sm" onclick="doSearch()">検索</button>
-      </div>
-      <div id="search-results"></div>
-    </div>
-
-    <!-- デッキリスト -->
-    <div class="panel">
-      <div class="panel-title">デッキリスト</div>
-      <div class="nl-wrap" id="name-list"></div>
-    </div>
-
-    <!-- デッキ一覧 -->
-    <div class="panel deck-panel">
-      <div class="panel-title">デッキ管理</div>
-
-      <div class="deck-mgr">
-        <select id="deck-sel" onchange="loadDeckSel()">
-          <option value="">── 新規デッキ ──</option>
-        </select>
-        <input id="deck-name" placeholder="デッキ名" value="">
-        <button class="btn btn-gray btn-sm" onclick="saveDeckToServer()" title="アカウントに保存">☁</button>
-        <button class="btn btn-green btn-sm" onclick="saveDeck()">保存</button>
-        <button class="btn btn-gray btn-sm" onclick="deleteDeck()">削除</button>
-      </div>
-
-      <div class="deck-mgr2">
-        <button class="btn btn-gray btn-sm" onclick="duplicateDeck()">複製</button>
-        <button class="btn btn-gray btn-sm" onclick="exportDeck()">書き出し</button>
-        <button class="btn btn-gray btn-sm" onclick="importDeck()">読み込み</button>
-      </div>
-
-      <div class="deck-bar">
-        <div class="deck-count">合計: <b id="tot">0</b> 枚</div>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-gray btn-sm" onclick="clearDeck()">クリア</button>
-          <button class="btn btn-orange btn-sm" onclick="gotoGame()">このデッキで開始</button>
-          <button class="btn btn-gray btn-sm" onclick="registerAccount()">🔐 登録</button>
-          <button class="btn btn-gray btn-sm" onclick="loginAccount()">🔓 ログイン</button>
-          <button class="btn btn-gray btn-sm" onclick="olCreateRoom()" title="オンラインで対戦相手と遊ぶ">🌐 ルーム作成</button>
-          <button class="btn btn-gray btn-sm" onclick="olJoinRoom()" title="ルームコードを入力して参加">🌐 参加</button>
-        </div>
-      </div>
-
-      <div class="card-rows" id="card-rows">
-        <div class="zone-empty">カードがありません</div>
-      </div>
-
-      <div class="deck-stats">
-        <div class="deck-stats-civ"><div id="civ-bar"></div></div>
-        <div class="deck-stats-curve"><div id="cost-curve"></div></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════════ GAME PAGE ═══ -->
-<div class="page" id="page-game">
-  <div class="game-wrap">
-
-    <div class="game-ctrl">
-      <div class="opp-deck-wrap">
-        <span>相手デッキ:</span>
-        <select id="opp-deck-sel"><option value="">なし</option></select>
-      </div>
-      <label style="display:flex;align-items:center;gap:5px;font-size:0.82rem;cursor:pointer;user-select:none;">
-        <input type="checkbox" id="vs-mode-chk"> 対戦モード
-      </label>
-      <button class="btn btn-red" onclick="startGame()">ゲーム開始</button>
-      <button class="btn btn-gray" onclick="resetGame()">リセット</button>
-      <button class="btn btn-gray" onclick="undo()">↩ 戻す</button>
-      <button class="btn btn-gray" onclick="drawCurrent()">自分ドロー</button>
-      <button class="btn btn-gray" onclick="nextTurn()">次ターン</button>
-      <button id="btn-opp-draw" class="btn btn-gray" onclick="drawOpponent()">相手ドロー</button>
-      <button class="btn btn-gray" onclick="deckTopTo('manaZone')">トップ→マナ</button>
-      <button class="btn btn-gray" onclick="deckTopTo('graveyard')">トップ→墓地</button>
-      <button class="btn btn-gray" onclick="deckTopTo('shields')">トップ→シールド</button>
-      <span style="display:inline-flex;align-items:center;gap:4px;border-left:1px solid var(--border);padding-left:8px;">
-        <button class="btn btn-gray" onclick="showRevealPicker(false,false)">山上N確認</button>
-        <button class="btn btn-gray" onclick="showRevealPicker(false,true)">山上N表向き</button>
-        <button id="btn-opp-peek" class="btn btn-gray" onclick="showRevealPicker(true,false)">相手山上N確認</button>
-        <button id="btn-op-log" class="btn btn-gray" onclick="toggleOpLog()" style="display:none;">📝 ログ</button>
-        <button id="btn-chat" class="btn btn-gray" onclick="toggleChat()" style="display:none;">💬 チャット</button>
-      </span>
-      <div class="turn-pill"><span id="turn-player-label"></span>ターン: <b id="turn-n">0</b> | 手札: <b id="hand-n">0</b> | マナ: <b id="mana-n">0</b></div>
-    </div>
-
-    <div id="revealed-zone" class="revealed-zone" style="display:none;">
-      <div class="rz-inner">
-        <div class="rz-hd">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span id="revealed-hd">公開中</span>
-            <span style="font-size:0.72rem;font-weight:400;color:var(--text-dim);">— 全カードを処理してください</span>
-          </div>
-          <label id="rev-all-label" style="display:none;align-items:center;gap:4px;font-size:0.82rem;font-weight:400;cursor:pointer;white-space:nowrap;color:var(--text);">
-            <input type="checkbox" id="rev-all-cb" style="width:14px;height:14px;" onchange="document.querySelectorAll('.rev-cb').forEach(cb=>cb.checked=this.checked)">全選択
-          </label>
-        </div>
-        <div id="revealed-cards-area"></div>
-      </div>
-    </div>
-    <div id="under-mode-banner" class="under-mode-banner" style="display:none;">
-      <span id="under-mode-text">カードを選択中...</span>
-      <button class="btn btn-gray btn-sm" onclick="cancelUnderMode()">キャンセル</button>
-    </div>
-    <div class="board">
-
-      <!-- ══ Chat Panel ══ -->
-      <div class="ol-chat-panel" id="ol-chat-panel">
-        <div class="ol-chat-title">チャット</div>
-        <div class="ol-chat-messages" id="ol-chat-messages"></div>
-        <div class="ol-chat-input-row">
-          <input type="text" id="ol-chat-input" placeholder="メッセージを入力..." onkeypress="if(event.key==='Enter') sendChat()">
-          <button onclick="sendChat()">送信</button>
-        </div>
-      </div>
-
-      <!-- ══ Operation Log Panel ══ -->
-      <div class="ol-log-panel" id="ol-log-panel">
-        <div class="ol-log-title">操作ログ</div>
-        <div class="ol-log-entries" id="ol-log-entries"></div>
-      </div>
-
-      <!-- ══ 相手エリア ══ -->
-      <div id="opp-area">
-        <!-- マナ + 墓地 -->
-        <div class="zone-row" style="display:flex;gap:10px;align-items:flex-start;">
-          <div class="zone-wrap" style="flex:1;">
-            <div class="zone-hd">相手 マナゾーン <span class="zone-cnt" id="cnt-opp-mana">0</span>
-              <button class="btn btn-gray btn-xs" onclick="untapAllOppMana()" style="margin-left:4px;">全アンタップ</button>
-            </div>
-            <div class="zone-cards" id="oppManaZone"><div class="zone-empty">空</div></div>
-          </div>
-          <div class="zone-wrap pile-col" style="padding:10px;width:155px;flex-shrink:0;">
-            <div class="zone-hd">相手墓地</div>
-            <button class="pile-btn" onclick="showOppGraveModal()" style="position:relative;overflow:hidden;">
-              <img id="opp-grave-thumb" src="" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;">
-              <span id="opp-grave-pile-empty" style="font-size:1.4rem;color:var(--text-dim);">空</span>
-              <span class="pile-n" id="cnt-opp-grave" style="position:absolute;bottom:4px;right:6px;background:rgba(0,0,0,.6);padding:1px 5px;border-radius:4px;">0</span>
-            </button>
-          </div>
-        </div>
-        <!-- 手札 + デッキ -->
-        <div class="bottom-row">
-          <div class="zone-wrap">
-            <div class="zone-hd">相手 手札 <span class="zone-cnt" id="cnt-opp-hand">0</span></div>
-            <div class="zone-cards" id="oppHandZone"><div class="zone-empty">空</div></div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:10px;">
-            <div class="zone-wrap pile-col" style="padding:10px;">
-              <div class="zone-hd">相手デッキ</div>
-              <button class="pile-btn" onclick="showOppDeckModal()">
-                <div class="gc-back" style="width:100%;height:100%;border-radius:6px;display:flex;align-items:center;justify-content:center;">DM</div>
-                <span class="pile-n" id="cnt-opp-deck" style="position:absolute;bottom:4px;right:6px;background:rgba(0,0,0,.6);padding:1px 5px;border-radius:4px;">0</span>
-              </button>
-            </div>
-          </div>
-        </div>
-        <!-- シールド -->
-        <div class="zone-wrap">
-          <div class="zone-hd">相手 シールドゾーン <span class="zone-cnt" id="cnt-opp-shield">5</span></div>
-          <div class="shields-row" id="oppShieldZone"></div>
-        </div>
-        <!-- バトルゾーン -->
-        <div class="zone-wrap">
-          <div class="zone-hd">相手 バトルゾーン <span class="zone-cnt" id="cnt-opp-battle">0</span></div>
-          <div class="zone-cards" id="oppBattleZone"><div class="zone-empty">空</div></div>
-        </div>
-      </div>
-
-      <div id="vs-divider" class="vs-divider">── VS ──</div>
-
-      <!-- ══ 自分エリア ══ -->
-      <div id="player-area">
-
-      <!-- バトルゾーン -->
-      <div class="zone-wrap">
-        <div class="zone-hd">バトルゾーン <span class="zone-cnt" id="cnt-battle">0</span></div>
-        <div class="zone-cards" id="battleZone"><div class="zone-empty">空</div></div>
-      </div>
-
-      <!-- シールド -->
-      <div class="zone-wrap">
-        <div class="zone-hd">シールドゾーン <span class="zone-cnt" id="cnt-shield">5</span></div>
-        <div class="shields-row" id="shieldZone"></div>
-      </div>
-
-      <!-- 手札 + デッキ -->
-      <div class="bottom-row">
-        <div class="zone-wrap">
-          <div class="zone-hd">手札 <span class="zone-cnt" id="cnt-hand">0</span></div>
-          <div class="zone-cards" id="handZone"><div class="zone-empty">空</div></div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:10px;">
-          <div class="zone-wrap pile-col" style="padding:10px;">
-            <div class="zone-hd">デッキ</div>
-            <button class="pile-btn" id="deck-pile-btn" onclick="showDeckModal()">
-              <div class="gc-back" style="width:100%;height:100%;border-radius:6px;display:flex;align-items:center;justify-content:center;">DM</div>
-              <span class="pile-n" id="cnt-deck" style="position:absolute;bottom:4px;right:6px;background:rgba(0,0,0,.6);padding:1px 5px;border-radius:4px;">0</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- マナゾーン + 墓地 -->
-      <div class="zone-row" style="display:flex;gap:10px;align-items:flex-start;">
-        <div class="zone-wrap" style="flex:1;">
-          <div class="zone-hd">マナゾーン <span class="zone-cnt" id="cnt-mana">0</span>
-            <button class="btn btn-gray btn-xs" onclick="untapAllMana()" style="margin-left:4px;">全アンタップ</button>
-          </div>
-          <div class="zone-cards" id="manaZone"><div class="zone-empty">空</div></div>
-        </div>
-        <div class="zone-wrap pile-col" style="padding:10px;width:155px;flex-shrink:0;">
-          <div class="zone-hd">墓地 <span class="zone-cnt" id="cnt-grave">0</span></div>
-          <button class="pile-btn" id="grave-pile-btn" onclick="showGraveModal()" style="position:relative;overflow:hidden;">
-            <img id="grave-thumb" src="" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;">
-            <span id="grave-pile-empty" style="font-size:1.4rem;color:var(--text-dim);">空</span>
-            <span class="pile-n" id="cnt-grave2" style="position:absolute;bottom:4px;right:6px;background:rgba(0,0,0,.6);padding:1px 5px;border-radius:4px;">0</span>
-          </button>
-        </div>
-      </div>
-
-      </div><!-- /#player-area -->
-
-      <!-- ログ -->
-      <div class="zone-wrap log-wrap">
-        <div class="zone-hd">📋 ゲームログ</div>
-        <div class="log-box" id="logBox"><div class="log-line">ゲームを開始してください。</div></div>
-      </div>
-
-    </div>
-  </div>
-</div>
-
-
-<!-- Context Menu -->
-<div id="ctx" class="ctx" style="display:none;"></div>
-
-<!-- Modal -->
-<div class="overlay" id="ov" style="display:none;" onclick="closeModal(event)">
-  <div class="modal">
-    <button class="modal-x" onclick="closeModal()">✕</button>
-    <h3 id="modal-title"></h3>
-    <div id="modal-body"></div>
-  </div>
-</div>
-
-<!-- Toasts -->
-<div class="toasts" id="toasts"></div>
-
-
-<script>
 // ╔══════════════════════════════════════════════════════════╗
 // ║  DATA                                                    ║
 // ╚══════════════════════════════════════════════════════════╝
@@ -1294,7 +499,6 @@ function nextTurn() {
       G.battleZone.forEach(c => c.tapped = false);
       drawOne(1, true);
     }
-    if (OL) addOpLog(OL.p, 'ターンを終了しました');
     const board = document.querySelector('.board');
     if (board) board.classList.toggle('p2-view', G.currentPlayer === 2);
     const curName = G.currentPlayer === 1 ? G.p1Name : G.p2Name;
@@ -1309,7 +513,6 @@ function nextTurn() {
     log(`─── ターン ${G.turn} ───`);
   }
   render();
-  olSyncTurnEnd();
 }
 
 function untapAllMana() {
@@ -1336,11 +539,7 @@ function deckTopTo(toZone) {
 
 function drawCurrent(count = 1) {
   if (G.vsMode && G.currentPlayer === 2) drawOpp(count);
-  else {
-    drawOne(count);
-    if (OL) addOpLog(OL.p, count + '枚ドロー');
-  }
-  olSync();
+  else drawOne(count);
 }
 
 function drawOpponent(count = 1) {
@@ -1385,7 +584,6 @@ function move(fromZone, toZone, iid, opts = {}) {
   log(`${card.name}: ${msg}`);
   toast(`「${card.name}」が\n「${zoneNames[fromZone] || fromZone}」から「${zoneNames[toZone] || toZone}」に移動しました`, card.img);
   render();
-  olSync();
 }
 
 function getZone(name) {
@@ -1401,7 +599,6 @@ function tapToggle(zone, iid) {
   c.tapped = !c.tapped;
   log(`${c.tapped ? 'タップ' : 'アンタップ'}: ${c.name}`);
   render();
-  olSync();
 }
 
 function breakShield(idx) {
@@ -1410,7 +607,6 @@ function breakShield(idx) {
   G.hand.push(c);
   log(`シールドブレイク → 手札: ${c.name}`);
   render();
-  olSync();
 }
 
 // Cast spell (from hand → briefly battleZone → graveyard)
@@ -1596,28 +792,22 @@ function makeCard(c, zone) {
 
   d.appendChild(face);
 
-  d.addEventListener('contextmenu', e => {
-    e.preventDefault();
-    if (zone.startsWith('opp-')) showCtxOppCard(e, c, zone);
-    else showCtxCard(e, c, zone);
-  });
   d.addEventListener('click', e => {
     if (G.underMode && (zone === 'battle' || zone === 'opp-battle')) {
       placeUnder(c, zone === 'opp-battle' ? 'oppBattleZone' : 'battleZone');
       return;
     }
-    if (zone === 'hand') showCtxCard(e, c, zone);
-    else if (zone === 'battle') {
-      if (c.under && c.under.length) showStackModal(c, 'battleZone');
-      else tapToggle('battleZone', c.iid);
-    }
-    else if (zone === 'mana') tapToggle('manaZone', c.iid);
-    else if (zone === 'opp-battle') {
-      if (c.under && c.under.length) showStackModal(c, 'oppBattleZone');
-      else tapToggleOpp('oppBattleZone', c.iid);
-    }
-    else if (zone === 'opp-mana') tapToggleOpp('oppManaZone', c.iid);
-    else showCtxOppCard(e, c, zone);
+    if (zone.startsWith('opp-')) showCtxOppCard(e, c, zone);
+    else showCtxCard(e, c, zone);
+  });
+  d.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    if (zone === 'battle')     tapToggle('battleZone', c.iid);
+    else if (zone === 'mana')  tapToggle('manaZone', c.iid);
+    else if (zone === 'opp-battle') tapToggleOpp('oppBattleZone', c.iid);
+    else if (zone === 'opp-mana')   tapToggleOpp('oppManaZone', c.iid);
+    else if (zone.startsWith('opp-')) showCtxOppCard(e, c, zone);
+    else showCtxCard(e, c, zone);
   });
   if (G.underMode && (zone === 'battle' || zone === 'opp-battle')) d.classList.add('under-target');
 
@@ -1630,6 +820,10 @@ function makeCard(c, zone) {
   });
   d.addEventListener('dragend', () => d.classList.remove('dragging'));
 
+  // Hover preview
+  d.addEventListener('mouseenter', e => showPreview(e, c));
+  d.addEventListener('mousemove',  _posPreview);
+  d.addEventListener('mouseleave', hidePreview);
 
   return d;
 }
@@ -1640,29 +834,14 @@ function makeCard(c, zone) {
 function makeCardStack(c, zone) {
   if (!c.under || !c.under.length) return makeCard(c, zone);
   const PEEK = document.querySelector('.board.vs-board') ? 13 : 20;
-  const MAX_PEEK = 5;
-  const total = c.under.length;
   const stack = document.createElement('div');
   stack.className = 'card-stack';
-  // Show at most MAX_PEEK thumbnails; rest represented by "+N" badge
-  const visible = [...c.under].slice(-MAX_PEEK).reverse(); // 上のほうのカードを最大5枚表示
-  const hidden  = total - visible.length;
-  stack.style.marginLeft = (visible.length * PEEK + (hidden ? PEEK : 0)) + 'px';
-  // "+N" badge for hidden cards
-  if (hidden) {
-    const badge = document.createElement('div');
-    badge.className = 'card-under-peek';
-    const leftPx = (visible.length + 1) * PEEK;
-    badge.style.cssText = `left:-${leftPx}px;top:4px;width:100%;position:absolute;z-index:0;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;color:#fff;`;
-    badge.title = `他 ${hidden} 枚`;
-    badge.textContent = `+${hidden}`;
-    stack.appendChild(badge);
-  }
-  visible.forEach((uc, i) => {
+  stack.style.marginLeft = (c.under.length * PEEK) + 'px';
+  [...c.under].reverse().forEach((uc, i) => {
     const peek = document.createElement('div');
     peek.className = 'card-under-peek';
-    const leftPx = (visible.length - i) * PEEK;
-    peek.style.cssText = `left:-${leftPx}px;top:4px;width:100%;position:absolute;z-index:${i + 1};`;
+    const leftPx = (c.under.length - i) * PEEK;
+    peek.style.cssText = 'left:-' + leftPx + 'px;top:4px;width:100%;position:absolute;z-index:' + i + ';';
     peek.title = uc.name;
     if (uc.img) {
       const img = document.createElement('img');
@@ -1673,8 +852,6 @@ function makeCardStack(c, zone) {
     stack.appendChild(peek);
   });
   const mainCard = makeCard(c, zone);
-  // 本体は常にピークより前面
-  mainCard.style.zIndex = total + 10;
   stack.appendChild(mainCard);
   return stack;
 }
@@ -1890,7 +1067,6 @@ function moveOpp(fromZone, toZone, iid, opts = {}) {
   log(`相手 ${card.name}: ${OPP_ZONE_NAMES[fromZone] || fromZone} → ${OPP_ZONE_NAMES[toZone] || toZone}`);
   toast(`「${card.name}」が\n「${OPP_ZONE_NAMES[fromZone] || fromZone}」から「${OPP_ZONE_NAMES[toZone] || toZone}」に移動しました`, card.img);
   render();
-  olSync();
 }
 
 function tapToggleOpp(zone, iid) {
@@ -1901,7 +1077,6 @@ function tapToggleOpp(zone, iid) {
   c.tapped = !c.tapped;
   log(`相手 ${c.tapped ? 'タップ' : 'アンタップ'}: ${c.name}`);
   render();
-  olSync();
 }
 
 function untapAllOppMana() {
@@ -1931,7 +1106,6 @@ function drawOpp(count = 1, skipRender = false) {
   }
   log('相手ドロー: ' + drawn.join(', '));
   if (!skipRender) render();
-  olSync();
 }
 
 function showCtxOppShield(e, idx) {
@@ -2248,29 +1422,18 @@ function renderRevealedZone() {
   if (!G.revealedCards || !G.revealedCards.length) { el.style.display = 'none'; return; }
   el.style.display = '';
   const isOpp = G.revealedFrom === 'oppDeck';
+  const zoneOpts = (isOpp ? _STACK_ZONES_OPP : _STACK_ZONES_PLR)
+    .map(z => '<option value="' + z.val + '">' + z.label + '</option>').join('');
   const backZone = isOpp ? 'oppDeck_top' : 'deck_top';
-  const auto1 = G.revealedCards.length === 1;
   document.getElementById('revealed-hd').textContent =
     G.revealedLabel + ' ' + G.revealedCards.length + '枚（' + (isOpp ? '相手' : '自分') + 'デッキから）';
-  const allLabel = document.getElementById('rev-all-label');
-  if (allLabel) allLabel.style.display = 'flex';
-  const quickZones = isOpp
-    ? [{ val: 'oppHand', label: '相手手札' }, { val: 'oppManaZone', label: '相手マナ' }, { val: 'oppBattleZone', label: '相手BZ' }, { val: 'oppGraveyard', label: '相手墓地' }]
-    : [{ val: 'hand', label: '手札' }, { val: 'manaZone', label: 'マナ' }, { val: 'battleZone', label: 'BZ' }, { val: 'graveyard', label: '墓地' }];
-  const quickVals = quickZones.map(z => z.val);
-  const otherOpts = (isOpp ? _STACK_ZONES_OPP : _STACK_ZONES_PLR)
-    .filter(z => !quickVals.includes(z.val))
-    .map(z => '<option value="' + z.val + '">' + z.label + '</option>').join('');
-  const quickBtns = quickZones
-    .map(z => '<button class="btn btn-gray btn-sm" onclick="moveSelectedRevealed(&#39;' + z.val + '&#39;)">' + z.label + '</button>')
-    .join('');
   document.getElementById('revealed-cards-area').innerHTML =
     '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
     + G.revealedCards.map((c, i) => {
       const civ = CIV[c.civ] || CIV.fire;
       const pos = i === 0 ? 'トップ' : (i + 1) + '枚目';
       return '<div class="rz-card" onclick="revealedCardClick(event,&#39;' + esc(c.iid) + '&#39;)" oncontextmenu="revealedCardCtx(event,&#39;' + esc(c.iid) + '&#39;);event.preventDefault()">'
-        + '<input type="checkbox" class="rev-cb" data-iid="' + esc(c.iid) + '" style="width:14px;height:14px;"' + (auto1 ? ' checked' : '') + ' onclick="event.stopPropagation()">'
+        + '<input type="checkbox" class="rev-cb" data-iid="' + esc(c.iid) + '" style="width:14px;height:14px;" onclick="event.stopPropagation()">'
         + '<div style="width:52px;height:73px;border-radius:5px;overflow:hidden;background:' + civ.color + ';flex-shrink:0;">'
         + (c.img ? '<img src="' + esc(c.img) + '" style="width:100%;height:100%;object-fit:cover;">' : '') + '</div>'
         + '<div style="font-size:0.6rem;text-align:center;width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim);">' + pos + '</div>'
@@ -2278,16 +1441,13 @@ function renderRevealedZone() {
         + '</div>';
     }).join('')
     + '</div>'
-    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'
-    + '<button class="btn btn-gray btn-sm" onclick="returnAllRevealed(&#39;' + backZone + '&#39;)">全部デッキに戻す</button>'
-    + '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">'
-    + quickBtns
-    + '<select id="rev-dest" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:6px;font-size:0.82rem;">' + otherOpts + '</select>'
+    + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'
+    + '<label style="display:flex;align-items:center;gap:4px;font-size:0.82rem;cursor:pointer;white-space:nowrap;">'
+    + '<input type="checkbox" id="rev-all-cb" style="width:14px;height:14px;" onchange="document.querySelectorAll(&#39;.rev-cb&#39;).forEach(cb=>cb.checked=this.checked)">全選択</label>'
+    + '<select id="rev-dest" style="flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font-size:0.82rem;">' + zoneOpts + '</select>'
     + '<button class="btn btn-orange btn-sm" onclick="moveSelectedRevealed()">移動</button>'
-    + '</div>'
+    + '<button class="btn btn-gray btn-sm" onclick="returnAllRevealed(&#39;' + backZone + '&#39;)">全部デッキに戻す</button>'
     + '</div>';
-  const allCb = document.getElementById('rev-all-cb');
-  if (allCb) allCb.checked = auto1;
 }
 
 function revealedCardClick(e, iid) {
@@ -2332,9 +1492,9 @@ function moveFromRevealed(iid, destZone) {
   render();
 }
 
-function moveSelectedRevealed(destZone) {
+function moveSelectedRevealed() {
   saveUndo();
-  const dest = destZone || document.getElementById('rev-dest')?.value;
+  const dest = document.getElementById('rev-dest')?.value;
   const iids = [...document.querySelectorAll('.rev-cb:checked')].map(cb => cb.dataset.iid);
   if (!iids.length) { toast('カードを選択してください'); return; }
   const allZ = [..._STACK_ZONES_PLR, ..._STACK_ZONES_OPP];
@@ -2551,7 +1711,7 @@ function esc(s) {
 // ╔══════════════════════════════════════════════════════════╗
 // ║  CARD SEARCH (proxy)                                     ║
 // ╚══════════════════════════════════════════════════════════╝
-const PROXY = 'https://dm-solitaire-production.up.railway.app';
+const PROXY = 'http://localhost:8765';
 const SR_PER_PAGE = 24;
 let _detailCache = {}; // cardId → card detail object
 let _sr = { query: '', all: [], page: 0, proxyPage: 1, done: false, busy: false };
@@ -2621,578 +1781,6 @@ async function checkProxy() {
   document.getElementById('proxy-dot').className = 'sdot off';
   document.getElementById('proxy-msg').textContent = 'プロキシ未起動 → ターミナルで: python dm-proxy.py';
   return false;
-}
-
-// ── Online Mode (オンライン対戦) ────────────────────────────────
-let OL = null;  // {room, p, p1Name, p2Name, eventSource}
-let _olSSETimer = null;
-let _prevGameState = null;  // 差分検出用
-let _opLog = [];  // 操作ログ（最大50件）
-let _chatMessages = [];  // チャットメッセージ（最大100件）
-let _account = null;  // {username, pin}
-let _serverDeckNames = [];  // サーバーに保存されているデッキ名一覧
-
-function createAbortSignal(timeoutMs) {
-  if (AbortSignal.timeout) {
-    return AbortSignal.timeout(timeoutMs);
-  }
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), timeoutMs);
-  return controller.signal;
-}
-
-function loadAccount() {
-  _account = null;  // Reset to clear state
-  const saved = sessionStorage.getItem('dm_account');
-  if (saved) {
-    try {
-      _account = JSON.parse(saved);
-    } catch (e) {
-      console.warn('Failed to parse account from sessionStorage:', e);
-      _account = null;
-    }
-  }
-}
-
-function saveAccount(username, pin) {
-  _account = { username, pin };
-  try {
-    sessionStorage.setItem('dm_account', JSON.stringify(_account));
-  } catch (e) {
-    console.warn('Failed to save account to sessionStorage (private mode?):', e);
-  }
-}
-
-function clearAccount() {
-  _account = null;
-  try {
-    sessionStorage.removeItem('dm_account');
-  } catch (e) {
-    console.warn('Failed to clear account from sessionStorage:', e);
-  }
-}
-
-async function registerAccount() {
-  const username = prompt('ユーザー名を入力してください（3〜20文字）:');
-  if (!username || username.trim().length < 3) { toast('ユーザー名を入力してください'); return; }
-  
-  const pin = prompt('暗証番号を入力してください（4桁の数字）:');
-  if (!pin || pin.length !== 4 || !/^\d+$/.test(pin)) { toast('暗証番号は4桁の数字です'); return; }
-  
-  try {
-    const r = await fetch(`${PROXY}/profile/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: username.trim(), pin, last_deck: '' }),
-      signal: AbortSignal.timeout(5000)
-    });
-    const d = await r.json();
-    if (!r.ok) {
-      toast(`登録失敗: ${d.error}`);
-      return;
-    }
-    saveAccount(username.trim(), pin);
-    toast('アカウントを作成しました');
-  } catch (e) {
-    toast(`エラー: ${e.message}`);
-  }
-}
-
-async function loginAccount() {
-  const username = prompt('ユーザー名を入力してください:');
-  if (!username) { toast('ユーザー名を入力してください'); return; }
-  
-  const pin = prompt('暗証番号を入力してください（4桁の数字）:');
-  if (!pin || pin.length !== 4 || !/^\d+$/.test(pin)) { toast('暗証番号は4桁の数字です'); return; }
-  
-  try {
-    const r = await fetch(`${PROXY}/profile/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: username.trim(), pin }),
-      signal: AbortSignal.timeout(5000)
-    });
-    const d = await r.json();
-    if (!r.ok) {
-      toast(`ログイン失敗: ${d.error}`);
-      return;
-    }
-    saveAccount(username.trim(), pin);
-    toast('ログインしました');
-  } catch (e) {
-    toast(`エラー: ${e.message}`);
-  }
-}
-
-async function saveDeckToServer() {
-  if (!_account) {
-    toast('ログインしてからアカウントに保存してください');
-    return;
-  }
-  
-  const deckName = document.getElementById('deck-name').value.trim();
-  if (!deckName) {
-    toast('デッキ名を入力してください');
-    return;
-  }
-  
-  try {
-    const r = await fetch(`${PROXY}/deck/save`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: _account.username,
-        pin: _account.pin,
-        deck_name: deckName,
-        deck_data: deckCards
-      }),
-      signal: AbortSignal.timeout(5000)
-    });
-    const d = await r.json();
-    if (!r.ok) {
-      toast(`保存失敗: ${d.error}`);
-      return;
-    }
-    toast(`「${deckName}」をアカウントに保存しました`);
-  } catch (e) {
-    toast(`保存エラー: ${e.message}`);
-  }
-}
-
-async function loadServerDecks() {
-  if (!_account || _loadingServerDecks) return;
-  
-  _loadingServerDecks = true;
-  try {
-    const r = await fetch(`${PROXY}/deck/list?username=${encodeURIComponent(_account.username)}&pin=${encodeURIComponent(_account.pin)}`, {
-      signal: createAbortSignal(5000)
-    });
-    const d = await r.json();
-    if (r.ok && d.decks && Array.isArray(d.decks)) {
-      _serverDeckNames = d.decks;
-      console.log(`[deck] Loaded ${d.decks.length} server decks`);
-    } else {
-      _serverDeckNames = [];
-      console.warn('[deck] Server deck list failed, using local decks only');
-    }
-  } catch (e) {
-    _serverDeckNames = [];
-    console.warn('[deck] Server connection error, using local decks only:', e.message);
-    if (typeof toast === 'function') toast('サーバーに接続できません。ローカルデッキのみ使用します。');
-  } finally {
-    _loadingServerDecks = false;
-  }
-}
-
-async function fetchServerDeck(deckName) {
-  if (!_account) return null;
-  
-  try {
-    const r = await fetch(`${PROXY}/deck/get?username=${encodeURIComponent(_account.username)}&pin=${encodeURIComponent(_account.pin)}&deck_name=${encodeURIComponent(deckName)}`, {
-      signal: createAbortSignal(10000)
-    });
-    if (!r.ok) {
-      console.warn(`Failed to fetch deck: HTTP ${r.status}`);
-      return null;
-    }
-    const d = await r.json();
-    if (d && d.deck_data) {
-      return d.deck_data;
-    }
-  } catch (e) {
-    console.error('Failed to fetch server deck:', e.message);
-  }
-  return null;
-}
-
-function olCanControl(p) {
-  return OL && (OL.p === p || !OL.p);
-}
-
-function olSync() {
-  if (OL && G) olSendAction('state');
-}
-
-function olSyncTurnEnd() {
-  if (OL && G) olSendAction('turn_end');
-}
-
-function showTurnNotification(isMyTurn) {
-  const board = document.querySelector('.board.vs-board');
-  if (board) {
-    board.classList.add('turn-pulse');
-    setTimeout(() => board.classList.remove('turn-pulse'), 800);
-  }
-  if (isMyTurn) {
-    toast('あなたのターンです！', 2000);
-  }
-}
-
-async function olCreateRoom() {
-  const name = prompt('プレイヤー名を入力（デフォルト: Player 1）:') || 'Player 1';
-  const deckName = document.getElementById('deck-name').value.trim();
-  if (!deckName) { toast('デッキ名を入力してください'); return; }
-  
-  // Load deck data (server or local)
-  let deckData = null;
-  if (Array.isArray(_serverDeckNames) && _serverDeckNames.includes(deckName)) {
-    deckData = await fetchServerDeck(deckName);
-  } else if (savedDecks[deckName]) {
-    deckData = savedDecks[deckName];
-  }
-  
-  // Explicit null check to prevent JSON.parse crash
-  if (!deckData || typeof deckData !== 'object') {
-    toast('デッキを取得できません'); return;
-  }
-  
-  try {
-    const r = await fetch(`${PROXY}/room/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-      signal: createAbortSignal(10000)
-    });
-    const d = await r.json();
-    if (d.error) { toast(`エラー: ${d.error}`); return; }
-    
-    // Apply deck to game
-    try {
-      deckCards = JSON.parse(JSON.stringify(deckData));
-    } catch (e) {
-      toast('デッキデータエラー'); return;
-    }
-    
-    OL = { room: d.room, p: 'p1', p1Name: name, p2Name: null, deckName, eventSource: null };
-    toast(`ルーム作成: ${OL.room}\n相手にこのコードを伝えてください`);
-    
-    olWaitForOpponent();
-  } catch (e) {
-    toast(`接続エラー: ${e.message}`);
-  }
-}
-
-async function olJoinRoom() {
-  const code = prompt('ルームコード（6文字）を入力:');
-  if (!code || code.length !== 6) { toast('コードエラー'); return; }
-  
-  const name = prompt('プレイヤー名を入力（デフォルト: Player 2）:') || 'Player 2';
-  const deckName = document.getElementById('deck-name').value.trim();
-  if (!deckName) { toast('デッキ名を入力してください'); return; }
-  
-  // Load deck data (server or local)
-  let deckData = null;
-  if (Array.isArray(_serverDeckNames) && _serverDeckNames.includes(deckName)) {
-    deckData = await fetchServerDeck(deckName);
-  } else if (savedDecks[deckName]) {
-    deckData = savedDecks[deckName];
-  }
-  
-  // Explicit null check to prevent JSON.parse crash
-  if (!deckData || typeof deckData !== 'object') {
-    toast('デッキを取得できません'); return;
-  }
-  
-  try {
-    const r = await fetch(`${PROXY}/room/join`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ room: code.toUpperCase(), name }),
-      signal: createAbortSignal(10000)
-    });
-    const d = await r.json();
-    if (d.error) { toast(`エラー: ${d.error}`); return; }
-    
-    // Apply deck to game
-    try {
-      deckCards = JSON.parse(JSON.stringify(deckData));
-    } catch (e) {
-      toast('デッキデータエラー'); return;
-    }
-    
-    OL = { room: code.toUpperCase(), p: 'p2', p1Name: d.p1_name, p2Name: name, deckName, eventSource: null };
-    toast(`参加しました！${OL.p1Name} との対戦開始`);
-    startOnlineVs();
-  } catch (e) {
-    toast(`接続エラー: ${e.message}`);
-  }
-}
-
-function olWaitForOpponent() {
-  if (!OL) return;
-  
-  const es = new EventSource(`${PROXY}/events?room=${OL.room}&p=${OL.p}`);
-  OL.eventSource = es;
-  
-  es.addEventListener('joined', (e) => {
-    const data = JSON.parse(e.data);
-    OL.p2Name = data.p2_name;
-    toast(`${OL.p2Name} が参加！ ゲーム開始`);
-    setTimeout(() => startOnlineVs(), 500);
-  });
-  
-  es.onerror = () => {
-    es.close();
-    if (!OL.reconnectAttempt) OL.reconnectAttempt = 0;
-    if (OL.reconnectAttempt < 3) {
-      OL.reconnectAttempt++;
-      const delay = Math.pow(2, OL.reconnectAttempt) * 1000;
-      toast(`${delay / 1000}秒後に再接続します...`);
-      _olReconnectTimer = setTimeout(() => {
-        olWaitForOpponent();
-      }, delay);
-    } else {
-      toast('接続失敗。ロビーに戻ります。');
-      setTimeout(() => olCancelWait(), 2000);
-    }
-  };
-}
-
-function startOnlineVs() {
-  if (!OL) return;
-  if (OL.eventSource) OL.eventSource.close();
-  
-  // 相手のデッキを自動生成（内容は不明なので仮）
-  const oppDeckCards = [];
-  let uid = Math.floor(Math.random() * 100000);
-  const expanded = [];
-  for (let i = 0; i < 40; i++) {
-    expanded.push({
-      iid: String(uid++),
-      name: `? ${i + 1}`,
-      cost: Math.floor(Math.random() * 10) + 1,
-      civ: ['fire', 'water', 'light', 'dark', 'nature'][Math.floor(Math.random() * 5)],
-      tapped: false
-    });
-  }
-  
-  // 相手のシールドと手札
-  G.opp.shields = [];
-  G.opp.hand = [];
-  for (let i = 0; i < 5 && expanded.length; i++) G.opp.shields.push(expanded.pop());
-  for (let i = 0; i < 5 && expanded.length; i++) G.opp.hand.push(expanded.pop());
-  G.opp.deck = expanded;
-  
-  // 自プレイヤーの設定
-  if (OL.p === 'p1') {
-    G.vsMode = true;
-    G.currentPlayer = 1;
-  } else {
-    G.vsMode = true;
-    G.currentPlayer = 2;
-  }
-  G.p1Name = OL.p1Name;
-  G.p2Name = OL.p2Name;
-  _opLog = [];  // 操作ログをリセット
-  _chatMessages = [];  // チャットメッセージをリセット
-  
-  document.getElementById('tab-game').click();
-  document.getElementById('btn-op-log').style.display = '';  // ログボタンを表示
-  document.getElementById('btn-chat').style.display = '';  // チャットボタンを表示
-  render();
-  
-  // SSE リスナー開始
-  olStartEventListener();
-}
-
-function olStartEventListener() {
-  if (!OL || !G) return;
-  
-  const es = new EventSource(`${PROXY}/events?room=${OL.room}&p=${OL.p}`);
-  OL.eventSource = es;
-  
-  es.addEventListener('opponent_state', (e) => {
-    const data = JSON.parse(e.data);
-    const oppP = OL.p === 'p1' ? 'opp' : 'p';  // web版では 'opp' プロパティを使用
-    if (data.p1) {
-      const src = OL.p === 'p1' ? 'p2' : 'p1';
-      if (data[src]) {
-        const oppKey = OL.p === 'p1' ? 'opp' : 'p';
-        G[oppKey] = data[src] || G[oppKey];
-      }
-    }
-    if (data.turn) G.turn = data.turn;
-    if (data.active) G.currentPlayer = data.active === 'p1' ? 1 : 2;
-    
-    // アニメーション表示：移動したカードを検出
-    if (_prevGameState) {
-      olAnimateCardMovement();
-    }
-    _prevGameState = JSON.parse(JSON.stringify(G));
-    
-    render();
-  });
-  
-  es.addEventListener('turn_end', (e) => {
-    const data = JSON.parse(e.data);
-    const prevActivePlayer = G.currentPlayer;
-    G.turn = data.turn;
-    G.currentPlayer = data.active === 'p1' ? 1 : 2;
-    
-    // ターン切り替わりを検出したら通知
-    if (prevActivePlayer !== G.currentPlayer) {
-      const isMyTurn = (OL.p === 'p1' && G.currentPlayer === 1) || (OL.p === 'p2' && G.currentPlayer === 2);
-      showTurnNotification(isMyTurn);
-    }
-    render();
-  });
-  
-  es.addEventListener('ping', () => {});
-  
-  es.addEventListener('chat_message', (e) => {
-    const data = JSON.parse(e.data);
-    addChatMessage(data.p, data.name, data.msg);
-  });
-  
-  es.onerror = () => {
-    es.close();
-    if (!OL.reconnectAttempt) OL.reconnectAttempt = 0;
-    if (OL.reconnectAttempt < 3) {
-      OL.reconnectAttempt++;
-      const delay = Math.pow(2, OL.reconnectAttempt) * 1000;
-      toast(`${delay / 1000}秒後に再接続します...`);
-      _olReconnectTimer = setTimeout(() => {
-        olStartEventListener();
-      }, delay);
-    } else {
-      toast('接続失敗。ロビーに戻ります。');
-      setTimeout(() => olCancelWait(), 2000);
-    }
-  };
-}
-
-function olAnimateCardMovement() {
-  if (!_prevGameState || !G || !G.opp) return;
-  
-  // 相手のカード枚数が変わったゾーンを検出
-  const zones = ['hand', 'battleZone', 'manaZone', 'graveyard', 'shields', 'deck'];
-  zones.forEach(zone => {
-    const prevCount = (_prevGameState.opp && _prevGameState.opp[zone]) ? _prevGameState.opp[zone].length : 0;
-    const currCount = (G.opp && G.opp[zone]) ? G.opp[zone].length : 0;
-    
-    if (prevCount !== currCount) {
-      olShowZoneFlash(`opp-${zone}`);
-    }
-  });
-}
-
-function olShowZoneFlash(zoneId) {
-  const el = document.getElementById(zoneId);
-  if (el) {
-    el.style.transition = 'outline-color 0.3s';
-    el.style.outlineWidth = '2px';
-    el.style.outlineColor = 'rgba(34, 197, 94, 0.8)';
-    el.style.outlineStyle = 'solid';
-    setTimeout(() => {
-      el.style.outlineWidth = '';
-      el.style.outlineColor = '';
-      el.style.outlineStyle = '';
-      el.style.transition = '';
-    }, 500);
-  }
-}
-
-function olSendAction(actionType = 'state') {
-  if (!OL || !G) return;
-  
-  const payload = {
-    room: OL.room,
-    p: OL.p,
-    type: actionType,
-    turn: G.turn,
-    active: G.currentPlayer === 1 ? 'p1' : 'p2',
-    p1: OL.p === 'p1' ? { hand: G.hand.length, battleZone: G.battleZone.length, manaZone: G.manaZone.length, shields: G.shields.length, deck: G.deck.length, graveyard: G.graveyard.length } : null,
-    p2: OL.p === 'p2' ? { hand: G.hand.length, battleZone: G.battleZone.length, manaZone: G.manaZone.length, shields: G.shields.length, deck: G.deck.length, graveyard: G.graveyard.length } : null,
-  };
-  
-  fetch(`${PROXY}/action`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).catch(() => {});
-}
-
-function addOpLog(player, action) {
-  if (!OL) return;
-  _opLog.push({
-    p: player,
-    action: action,
-    time: new Date().toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit', second: '2-digit'})
-  });
-  // 最大50件を保持
-  if (_opLog.length > 50) _opLog.shift();
-  updateOpLogDisplay();
-}
-
-function updateOpLogDisplay() {
-  const panel = document.getElementById('ol-log-panel');
-  const entries = document.getElementById('ol-log-entries');
-  if (!panel || !entries) return;
-  
-  if (_opLog.length === 0) {
-    entries.innerHTML = '<div class="ol-log-empty">操作ログはまだありません</div>';
-  } else {
-    entries.innerHTML = _opLog.map(log => {
-      const playerName = log.p === 'p1' ? OL.p1Name : OL.p2Name;
-      return `<div class="ol-log-entry ${log.p}"><span class="ol-log-player">${playerName}</span> ${log.action} <span style="color:var(--text-dim);font-size:0.7rem;">${log.time}</span></div>`;
-    }).join('');
-  }
-  
-  // スクロール最下部へ
-  entries.scrollTop = entries.scrollHeight;
-}
-
-function toggleOpLog() {
-  const panel = document.getElementById('ol-log-panel');
-  if (panel) panel.classList.toggle('show');
-}
-
-function addChatMessage(p, name, msg) {
-  if (!OL) return;
-  _chatMessages.push({ p, name, msg, time: new Date().toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'}) });
-  if (_chatMessages.length > 100) _chatMessages.shift();
-  updateChatDisplay();
-}
-
-function updateChatDisplay() {
-  const messagesDiv = document.getElementById('ol-chat-messages');
-  if (!messagesDiv) return;
-  
-  messagesDiv.innerHTML = _chatMessages.map(m => `
-    <div class="ol-chat-msg ${m.p}">
-      <div class="ol-chat-from">${m.name}</div>
-      <div>${m.msg}</div>
-      <div style="font-size:0.7rem;color:rgba(0,0,0,.5);margin-top:2px;">${m.time}</div>
-    </div>
-  `).join('');
-  
-  // スクロール最下部へ
-  messagesDiv.scrollTop = messagesDiv.scrollHeight;
-}
-
-function toggleChat() {
-  const panel = document.getElementById('ol-chat-panel');
-  if (panel) panel.classList.toggle('show');
-}
-
-async function sendChat() {
-  if (!OL) return;
-  const input = document.getElementById('ol-chat-input');
-  const msg = input.value.trim();
-  if (!msg) return;
-  
-  input.value = '';
-  
-  try {
-    await fetch(`${PROXY}/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ room: OL.room, p: OL.p, message: msg }),
-      signal: AbortSignal.timeout(5000)
-    });
-  } catch (e) {
-    toast('送信失敗');
-  }
 }
 
 async function doSearch() {
@@ -3411,6 +1999,3 @@ function addFromDetail(cardId, count) {
 loadStorage();
 checkProxy();
 setInterval(checkProxy, 10000);
-</script>
-</body>
-</html>
