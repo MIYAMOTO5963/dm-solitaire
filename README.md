@@ -15,9 +15,9 @@
 
 ## クイックスタート（おすすめ）
 
-### オンライン版（推奨）
+### オンライン版（推奨 - インストール不要）
 
-ブラウザでアクセス - インストール不要
+ブラウザでアクセスするだけ：
 
 **PC版:**  
 https://your-domain.com/dm-solitaire-web.html
@@ -25,31 +25,17 @@ https://your-domain.com/dm-solitaire-web.html
 **スマホ版:**  
 https://your-domain.com/dm-solitaire-sp.html
 
-### ローカル版（開発用）
-
-リポジトリをクローンしてローカルで実行：
-
-```bash
-git clone https://github.com/[USER]/dm-solitaire.git
-cd dm-solitaire
-python dm-proxy-server.py
-```
-
-次にブラウザで開け：
-
-```
-file:///path/to/dm-solitaire-web.html
-file:///path/to/dm-solitaire-sp.html
-```
-
 推奨: Chrome / Edge / Safari 最新版
 
+---
+
+### ローカル版（開発・テスト用）
+
+#### 1. セットアップ
+
 ```bash
-# リポジトリクローン
 git clone https://github.com/[USER]/dm-solitaire.git
 cd dm-solitaire
-
-# Python サーバー起動
 python dm-proxy-server.py
 ```
 
@@ -60,18 +46,31 @@ python dm-proxy-server.py
 [DM Proxy] Starting on http://localhost:8765
 ```
 
-### ブラウザアクセス
+#### 2. ブラウザで開く
 
 ```
 file:///path/to/dm-solitaire-web.html
+或は
+http://localhost:8765 (ファイルプロトコルでなく、サーバーでホストする場合)
 ```
 
-**URL の `PROXY` をローカルに指す場合:**
+#### 3. ローカルサーバーのデフォルト設定
 
-HTML 内の設定行を編集:
+HTML ファイル内の `PROXY` 設定を確認：
+
 ```javascript
 const PROXY = 'http://localhost:8765';  // デフォルト
 ```
+
+別ポートで起動する場合：
+
+```bash
+PORT=9999 python dm-proxy-server.py
+```
+
+---
+
+## 使い方
 
 ### 1. デッキを作る
 
