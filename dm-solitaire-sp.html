@@ -2177,18 +2177,15 @@ async function saveDeckToServer() {
   }
 }
 
-function showOnlineLobby() {
+async function showOnlineLobby() {
   loadStorage();
   loadAccount();
   
-  // Load and display server decks if logged in
-  if (_account) {
-    loadServerDecks();
-  } else {
-    // Show local decks only as fallback
-    const keys = Object.keys(savedDecks);
-    updateDeckSelector(keys);
-  }
+  // UI 表示
+  document.getElementById('ol-lobby').style.display = '';
+  document.getElementById('ol-waiting').style.display = 'none';
+  document.getElementById('ol-join-form').style.display = 'none';
+  showScreen('screen-online');
   
   // Pre-fill name if logged in
   if (_account) {
@@ -2197,13 +2194,14 @@ function showOnlineLobby() {
     document.getElementById('ol-name').value = '';
   }
   
-  document.getElementById('ol-lobby').style.display = '';
-  document.getElementById('ol-waiting').style.display = 'none';
-  document.getElementById('ol-join-form').style.display = 'none';
-  showScreen('screen-online');
-  
   // Load server decks asynchronously
-  await loadServerDecks();
+  if (_account) {
+    await loadServerDecks();
+  } else {
+    // Show local decks only as fallback
+    const keys = Object.keys(savedDecks);
+    updateDeckSelector(keys);
+  }
 }
 
 async function loadServerDecks() {
