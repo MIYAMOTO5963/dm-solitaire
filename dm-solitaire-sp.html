@@ -801,7 +801,7 @@ async function srFetch() {
   if (_sr.busy || _sr.done) return;
   _sr.busy = true; const q = _sr.q;
   try {
-    const r = await fetch(`${PROXY}/search?q=${encodeURIComponent(q)}&page=${_sr.proxyPage}`, { signal: AbortSignal.timeout(15000) });
+    const r = await fetch(`${PROXY}/search?q=${encodeURIComponent(q)}&page=${_sr.proxyPage}`, { signal: createAbortSignal(15000) });
     const d = await r.json();
     if (_sr.q !== q) return;
     if (d.cards && d.cards.length > 0) { _sr.all.push(...d.cards); _sr.proxyPage++; } else { _sr.done = true; }
@@ -830,7 +830,7 @@ function srAdd(c) {
   if (existing) { existing.count++; renderCardGrid(); srRender(); toast(`「${c.name}」×${existing.count}`); return; }
   const cached = _detailCache[c.id];
   if (cached) { _srAddCard(cached); return; }
-  fetch(`${PROXY}/detail?id=${encodeURIComponent(c.id)}`, { signal: AbortSignal.timeout(20000) })
+  fetch(`${PROXY}/detail?id=${encodeURIComponent(c.id)}`, { signal: createAbortSignal(20000) })
     .then(r => r.json()).then(d => { _detailCache[c.id] = d; _srAddCard(d); })
     .catch(() => toast('カード取得に失敗しました'));
 }
@@ -2016,7 +2016,7 @@ async function registerAccount() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, pin, last_deck: deck }),
-      signal: AbortSignal.timeout(5000)
+      signal: createAbortSignal(5000)
     });
     const d = await r.json();
     if (!r.ok) {
@@ -2043,7 +2043,7 @@ async function loginAccount() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, pin }),
-      signal: AbortSignal.timeout(5000)
+      signal: createAbortSignal(5000)
     });
     const d = await r.json();
     if (!r.ok) {
@@ -2080,7 +2080,7 @@ async function saveDeckToServer() {
         deck_name: deckName,
         deck_data: deckCards
       }),
-      signal: AbortSignal.timeout(5000)
+      signal: createAbortSignal(5000)
     });
     const d = await r.json();
     if (!r.ok) {
@@ -2584,7 +2584,7 @@ async function sendChat() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ room: OL.room, p: OL.p, message: msg }),
-      signal: AbortSignal.timeout(5000)
+      signal: createAbortSignal(5000)
     });
   } catch (e) {
     toast('送信失敗');

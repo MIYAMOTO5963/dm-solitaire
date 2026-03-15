@@ -988,7 +988,7 @@ function _startImgLoad() {
       }
       try {
         const r = await fetch(`${PROXY}/detail?id=${encodeURIComponent(card.id)}`,
-                              { signal: AbortSignal.timeout(25000) });
+                              { signal: createAbortSignal(25000) });
         if (_imgLoadGen !== gen) return;
         const c = await r.json();
         if (c.img) {
@@ -2610,7 +2610,7 @@ function _doResetGame() {
 
 async function checkProxy() {
   try {
-    const r = await fetch(`${PROXY}/ping`, { signal: AbortSignal.timeout(2000) });
+    const r = await fetch(`${PROXY}/ping`, { signal: createAbortSignal(2000) });
     const d = await r.json();
     if (d.status === 'ok') {
       document.getElementById('proxy-dot').className = 'sdot on';
@@ -2684,7 +2684,7 @@ async function registerAccount() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: username.trim(), pin, last_deck: '' }),
-      signal: AbortSignal.timeout(5000)
+      signal: createAbortSignal(5000)
     });
     const d = await r.json();
     if (!r.ok) {
@@ -2710,7 +2710,7 @@ async function loginAccount() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: username.trim(), pin }),
-      signal: AbortSignal.timeout(5000)
+      signal: createAbortSignal(5000)
     });
     const d = await r.json();
     if (!r.ok) {
@@ -2746,7 +2746,7 @@ async function saveDeckToServer() {
         deck_name: deckName,
         deck_data: deckCards
       }),
-      signal: AbortSignal.timeout(5000)
+      signal: createAbortSignal(5000)
     });
     const d = await r.json();
     if (!r.ok) {
@@ -3188,7 +3188,7 @@ async function sendChat() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ room: OL.room, p: OL.p, message: msg }),
-      signal: AbortSignal.timeout(5000)
+      signal: createAbortSignal(5000)
     });
   } catch (e) {
     toast('送信失敗');
@@ -3219,7 +3219,7 @@ async function _srFetchAndRender() {
     try {
       const r = await fetch(
         `${PROXY}/search?q=${encodeURIComponent(_sr.query)}&page=${_sr.proxyPage}`,
-        { signal: AbortSignal.timeout(20000) }
+        { signal: createAbortSignal(20000) }
       );
       const d = await r.json();
       if (_sr.total === null && d.total != null) _sr.total = d.total;
@@ -3282,7 +3282,7 @@ function _srLoadThumbs(cards) {
     if (cached?.img) { _setSrThumb(c.id, cached.img); return; }
     try {
       const r = await fetch(`${PROXY}/detail?id=${encodeURIComponent(c.id)}`,
-                            { signal: AbortSignal.timeout(20000) });
+                            { signal: createAbortSignal(20000) });
       const d = await r.json();
       if (d.img) {
         _detailCache[c.id] = Object.assign(_detailCache[c.id] || {}, d);
@@ -3338,7 +3338,7 @@ async function selectCard(cardId) {
 
   try {
     const r = await fetch(`${PROXY}/detail?id=${encodeURIComponent(cardId)}`,
-                          { signal: AbortSignal.timeout(20000) });
+                          { signal: createAbortSignal(20000) });
     const c = await r.json();
     if (c.error) {
       document.getElementById('modal-body').innerHTML =

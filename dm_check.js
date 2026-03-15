@@ -193,7 +193,7 @@ function _startImgLoad() {
       }
       try {
         const r = await fetch(`${PROXY}/detail?id=${encodeURIComponent(card.id)}`,
-                              { signal: AbortSignal.timeout(25000) });
+                              { signal: createAbortSignal(25000) });
         if (_imgLoadGen !== gen) return;
         const c = await r.json();
         if (c.img) {
@@ -1687,13 +1687,24 @@ function esc(s) {
 // ║  CARD SEARCH (proxy)                                     ║
 // ╚══════════════════════════════════════════════════════════╝
 const PROXY = 'http://localhost:8765';
+
+// AbortSignal.timeout() polyfill for older browsers
+function createAbortSignal(timeoutMs) {
+  if (AbortSignal.timeout) {
+    return AbortSignal.timeout(timeoutMs);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), timeoutMs);
+  return controller.signal;
+}
+
 const SR_PER_PAGE = 24;
 let _detailCache = {}; // cardId → card detail object
 let _sr = { query: '', all: [], page: 0, proxyPage: 1, done: false, busy: false };
 
 async function checkProxy() {
   try {
-    const r = await fetch(`${PROXY}/ping`, { signal: AbortSignal.timeout(2000) });
+    const r = await fetch(`${PROXY}/ping`, { signal: createAbortSignal(2000) });
     const d = await r.json();
     if (d.status === 'ok') {
       document.getElementById('proxy-dot').className = 'sdot on';
@@ -1730,7 +1741,7 @@ async function _srFetchAndRender() {
     try {
       const r = await fetch(
         `${PROXY}/search?q=${encodeURIComponent(_sr.query)}&page=${_sr.proxyPage}`,
-        { signal: AbortSignal.timeout(20000) }
+        { signal: createAbortSignal(20000) }
       );
       const d = await r.json();
       if (_sr.total === null && d.total != null) _sr.total = d.total;
@@ -1796,7 +1807,7 @@ function _srLoadThumbs(cards) {
     if (cached?.img) { _setSrThumb(c.id, cached.img); return; }
     try {
       const r = await fetch(`${PROXY}/detail?id=${encodeURIComponent(c.id)}`,
-                            { signal: AbortSignal.timeout(20000) });
+                            { signal: createAbortSignal(20000) });
       const d = await r.json();
       if (d.img) {
         _detailCache[c.id] = Object.assign(_detailCache[c.id] || {}, d);
@@ -1852,7 +1863,7 @@ async function selectCard(cardId) {
 
   try {
     const r = await fetch(`${PROXY}/detail?id=${encodeURIComponent(cardId)}`,
-                          { signal: AbortSignal.timeout(20000) });
+                          { signal: createAbortSignal(20000) });
     const c = await r.json();
     if (c.error) {
       document.getElementById('modal-body').innerHTML =
