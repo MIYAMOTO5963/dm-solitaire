@@ -2464,6 +2464,11 @@ async function startOnlineVs() {
   
   // SSE リスナー開始
   olStartEventListener();
+  
+  // 初期状態をサーバーに送信（相手に表示させるため）
+  setTimeout(() => {
+    olSendAction('state');
+  }, 200);
 }
 
 function olStartEventListener() {
