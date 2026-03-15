@@ -223,7 +223,8 @@ html, body {
 .sp-toast.show { opacity: 1; }
 
 /* ── VS Mode ── */
-#screen-vs { display: flex; flex-direction: column; overflow: hidden; }
+#screen-vs { flex-direction: column; overflow: hidden; }
+#screen-list { }
 .vs-board { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--border); gap: 1px; }
 .vs-half { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 1px; background: var(--border); }
 .vs-p2 { transform: rotate(180deg); }
@@ -293,7 +294,7 @@ html, body {
 .vs-drop-zone.drag-over { outline:2px dashed var(--accent) !important; background:rgba(249,115,22,0.08) !important; border-radius:6px; }
 
 /* ── Online Mode ── */
-#screen-online { display:flex; flex-direction:column; }
+#screen-online { flex-direction:column; }
 .ol-body { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; }
 .ol-field { display:flex; flex-direction:column; gap:6px; }
 .ol-field label { font-size:0.8rem; color:var(--text-dim); }
