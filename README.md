@@ -15,19 +15,63 @@
 
 ## クイックスタート（おすすめ）
 
+### オンライン版（推奨）
+
 ブラウザでアクセス - インストール不要
 
-**PC版:**
-https://example.com/dm-solitaire-web.html
+**PC版:**  
+https://your-domain.com/dm-solitaire-web.html
 
-**スマホ版:**
-https://example.com/dm-solitaire-sp.html
+**スマホ版:**  
+https://your-domain.com/dm-solitaire-sp.html
+
+### ローカル版（開発用）
+
+リポジトリをクローンしてローカルで実行：
+
+```bash
+git clone https://github.com/[USER]/dm-solitaire.git
+cd dm-solitaire
+python dm-proxy-server.py
+```
+
+次にブラウザで開け：
+
+```
+file:///path/to/dm-solitaire-web.html
+file:///path/to/dm-solitaire-sp.html
+```
 
 推奨: Chrome / Edge / Safari 最新版
 
----
+```bash
+# リポジトリクローン
+git clone https://github.com/[USER]/dm-solitaire.git
+cd dm-solitaire
 
-## 使い方
+# Python サーバー起動
+python dm-proxy-server.py
+```
+
+サーバー起動メッセージ:
+```
+[db] integrity check: OK
+[db] Loaded X profiles, Y decks
+[DM Proxy] Starting on http://localhost:8765
+```
+
+### ブラウザアクセス
+
+```
+file:///path/to/dm-solitaire-web.html
+```
+
+**URL の `PROXY` をローカルに指す場合:**
+
+HTML 内の設定行を編集:
+```javascript
+const PROXY = 'http://localhost:8765';  // デフォルト
+```
 
 ### 1. デッキを作る
 
@@ -102,7 +146,7 @@ https://example.com/dm-solitaire-sp.html
 
 ---
 
-## 💾 デッキ管理
+## デッキ管理
 
 ### ローカル保存（デフォルト）
 
@@ -139,7 +183,7 @@ https://example.com/dm-solitaire-sp.html
 
 ---
 
-## 🌐 マルチプレイ詳細
+## マルチプレイ詳細
 
 ### ルームシステム
 
@@ -359,19 +403,19 @@ CREATE TABLE decks (
 
 ---
 
-## 🌍 環境変数
+## 環境変数
 
 ```bash
 # ポート変更
 PORT=8765
 
 # ベースURL（デプロイ時）
-BASE_URL=https://example.com
+BASE_URL=https://your-domain.com
 ```
 
 ---
 
-## 📋 トラブルシューティング
+## トラブルシューティング
 
 | 問題 | 原因 | 解決 |
 |---|---|---|
