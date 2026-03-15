@@ -17,13 +17,14 @@
 
 ### オンライン版（推奨 - インストール不要）
 
-ブラウザでアクセスするだけ：
+ブラウザでアクセスするだけ（統合版・SP/WEB 自動判定）：
 
-**PC版:**  
-https://nagumaguma.github.io/dm-solitaire/dm-solitaire-web.html
+**統合版（推奨）:**  
+https://nagumaguma.github.io/dm-solitaire/dm-solitaire-unified.html
 
-**スマホ版:**  
-https://nagumaguma.github.io/dm-solitaire/dm-solitaire-sp.html
+**従来版:**
+- PC版: https://nagumaguma.github.io/dm-solitaire/dm-solitaire-web.html  
+- スマホ版: https://nagumaguma.github.io/dm-solitaire/dm-solitaire-sp.html
 
 推奨: Chrome / Edge / Safari 最新版
 
@@ -447,13 +448,59 @@ BASE_URL=https://nagumaguma.github.io/dm-solitaire
 ### コード構成
 
 ```
-dm-solitaire-sp.html     (2300+ 行)  - スマホ版フロント + ロジック
-dm-solitaire-web.html    (2900+ 行)  - PC 版フロント + ロジック
-dm-proxy-server.py       (1360+ 行)  - バックエンド / API / DB
-dm_cache.db              (自動生成)  - SQLite データベース
+dm-solitaire-unified.html  (1500+ 行)  - 統合版フロント（SP/WEB 自動判定、推奨）
+dm-solitaire-sp.html       (2300+ 行)  - レガシー：スマホ版
+dm-solitaire-web.html      (2900+ 行)  - レガシー：PC版
+dm-proxy-server.py         (1360+ 行)  - バックエンド / API / DB
+dm_cache.db                (自動生成)  - SQLite データベース
 ```
 
-### 主要な JavaScript 関数
+### ファイル選択ガイド
+
+| ファイル | 対象 | 説明 |
+|----------|------|------|
+| **dm-solitaire-unified.html** | 全て | ✅ 推奨 - メディアクエリで自動切り替え、保守性 UP |
+| dm-solitaire-web.html | PC / WEB | 従来式、PC最適化 |
+| dm-solitaire-sp.html | スマホ | 従来式、スマホ最適化 |
+
+**推奨理由:**
+- 単一ファイルで保守が簡単
+- CSS @media で 768px を境に自動切り替え
+- デッキ・アカウント情報が共有（sessionStorage）
+- ファイルサイズ 1/2 以下
+
+---
+
+## 機能チェックリスト
+
+### 統合版機能
+
+| 機能 | 実装 | 説明 |
+|------|------|------|
+| **デッキ管理** | ✅ | 作成・編集・保存・削除 |
+| **カード検索** | ✅ | プロキシでリアルタイム検索 |
+| **手札操作** | ✅ | +/-/削除ボタン，ドラッグ予定 |
+| **一人回し** | ✅ | シールド5枚+初期手札5枚 |
+| **VS対戦** | ✅ | 2人対戦（同機） |
+| **アカウント** | ✅ | 登録・ログイン・認証 |
+| **デッキ保存** | 🟡 | API実装完了、UI確認中 |
+| **オンライン** | 🟡 | フレームワーク完了、ロジック中 |
+| **ドラッグ** | 🔲 | 計画中 |
+| **エフェクト** | 🔲 | 計画中 |
+
+### 主要な JavaScript 関数（統合版）
+
+| 領域 | 関数 | 説明 |
+|------|------|------|
+| **Screen** | `switchScreen(id)` | スクリーン切り替え |
+| **Storage** | `loadStorage()`, `writeStorage()` | LocalStorage 操作 |
+| **Deck** | `renderDeckList()`, `saveDeck()`, `deleteDeck()` | デッキ管理 |
+| **Card** | `openCardDetail()`, `bsIncr()`, `bsDecr()` | 手札操作 |
+| **Search** | `srFetch()`, `srRender()`, `srAddCard()` | カード検索 |
+| **Game** | `startGame()`, `renderGame()` | ゲーム開始 |
+| **Account** | `registerAccount()`, `loginAccount()` | アカウント |
+
+### 主要な JavaScript 関数（レガシー版）
 
 | 領域 | 関数 |
 |---|---|
