@@ -12,12 +12,32 @@
   --accent: #f97316; --red: #ef4444;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 16px; }
+html, body {
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  font-size: 16px;
+  touch-action: manipulation;
+}
 
 /* ── Screen system ── */
-.screen { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg); transform: translateX(100%); transition: transform .25s ease; }
-.screen.active { transform: translateX(0); }
-#screen-list { transform: translateX(0); }
+.screen {
+  display: none;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--bg);
+  position: absolute;
+  inset: 0;
+}
+.screen.active {
+  display: flex;
+}
+#screen-list {
+  display: flex;
+}
 
 /* ── Header ── */
 .sp-hd {
@@ -58,7 +78,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .cg-cost { position: absolute; top: 2px; left: 2px; background: rgba(0,0,0,.72); color: #fff; font-size: 0.6rem; font-weight: 700; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 
 /* ── Search Panel ── */
-.search-panel { flex-shrink: 0; background: var(--surface); border-top: 1px solid var(--border); display: flex; flex-direction: column; max-height: 52vh; }
+.search-panel { flex-shrink: 0; background: var(--surface); border-top: 1px solid var(--border); display: flex; flex-direction: column; max-height: 45dvh; }
 .sr-wrap { flex: 1; overflow-y: auto; min-height: 0; }
 .sr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 4px; padding: 8px; }
 .search-bar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
@@ -95,26 +115,74 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 }
 .game-turn { font-size: 0.88rem; font-weight: 700; color: var(--accent); flex: 1; text-align: center; }
 
-.game-board { flex: 1; display: flex; flex-direction: column; gap: 1px; background: var(--border); overflow: hidden; }
+.game-board {
+  flex: 1;
+  display: grid;
+  grid-template-rows:
+    auto   /* 相手ゾーン */
+    auto   /* シールド */
+    1fr    /* バトルゾーン */
+    auto   /* 手札 */
+    auto;  /* マナ・操作 */
+  gap: 1px;
+  background: var(--border);
+  min-height: 0;
+}
 .zone { display: flex; flex-direction: column; background: var(--bg); flex: 1; min-height: 0; }
 .zone-mid { display: flex; flex: 0 0 92px; gap: 1px; }
 .zone-shields { background: var(--bg); flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .zone-sm-wrap { flex: 0 0 62px; background: var(--bg); display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .zone-lbl { font-size: 0.6rem; color: var(--text-dim); padding: 3px 6px 1px; flex-shrink: 0; }
-.zone-scroll { display: flex; gap: 5px; overflow-x: auto; padding: 3px 6px 5px; align-items: center; flex: 1; min-width: 0; }
-.zone-scroll::-webkit-scrollbar { display: none; }
+.zone-scroll {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 6px;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+}
+.zone-scroll > * {
+  scroll-snap-align: start;
+}
 .zone-ph { color: var(--text-dim); font-size: 0.72rem; padding: 4px; align-self: center; flex-shrink: 0; }
 
 /* ── SP Game Card ── */
-.sp-card { width: 50px; height: 70px; border-radius: 5px; overflow: hidden; flex-shrink: 0; cursor: pointer; border: 2px solid transparent; background: var(--surface2); position: relative; }
+.sp-card {
+  width: clamp(44px, 12vw, 60px);
+  aspect-ratio: 63/88;
+  height: auto;
+  border-radius: 5px;
+  overflow: hidden;
+  flex-shrink: 0;
+  cursor: pointer;
+  border: 2px solid transparent;
+  background: var(--surface2);
+  position: relative;
+}
 .sp-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .sp-card.tapped { border-color: var(--accent); opacity: .85; }
 .sp-card-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.44rem; text-align: center; padding: 3px; line-height: 1.3; color: var(--text-dim); }
 .sp-tap-badge { position: absolute; top: 1px; right: 1px; background: var(--accent); color: #fff; font-size: 0.48rem; font-weight: 700; padding: 1px 3px; border-radius: 3px; line-height: 1.2; }
 
 /* Shield stack */
-.shield-stack { display: flex; padding: 4px 6px; align-items: center; flex: 1; overflow: hidden; }
-.shield-stack .sp-card + .sp-card { margin-left: -26px; }
+.shield-stack {
+  display: flex;
+  padding: 4px 6px;
+  align-items: center;
+  flex: 1;
+  overflow: hidden;
+}
+.shield-stack .sp-card {
+  margin-left: 0;
+}
+.shield-stack .sp-card + .sp-card {
+  margin-left: -45%;
+}
 
 /* Deck / Grave small */
 .sm-card { width: 50px; height: 70px; border-radius: 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid var(--border); }
@@ -274,6 +342,21 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .ol-chat-input-row input:focus { border-color: var(--accent); }
 .ol-chat-input-row button { padding: 10px 16px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
 
+/* ── Performance Optimization ── */
+* { -webkit-tap-highlight-color: transparent; }
+
+button,
+.cg-card,
+.sr-card,
+.sp-card {
+  touch-action: manipulation;
+}
+
+img {
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
 
 </style>
 </head>
@@ -603,7 +686,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 <div class="bs-ov" id="bs-ov" onclick="bsOvClick(event)">
   <div class="bs">
     <div class="bs-info">
-      <div class="bs-thumb"><img id="bs-img" src="" alt=""></div>
+      <div class="bs-thumb"><img id="bs-img" src="" alt="" loading="lazy"></div>
       <div>
         <div class="bs-name" id="bs-name"></div>
         <div class="bs-sub" id="bs-sub"></div>
