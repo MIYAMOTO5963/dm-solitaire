@@ -2054,6 +2054,504 @@
       margin: 12px 0;
     }
 
+    /* Shared card visuals */
+    .dg-card-chip.fire,
+    .mg-card-chip.fire { border-color: #d16f44; background: linear-gradient(160deg, #fff2ea 0%, #f9d8c7 100%); }
+    .dg-card-chip.water,
+    .mg-card-chip.water { border-color: #4f86c5; background: linear-gradient(160deg, #eef5ff 0%, #cfe2fb 100%); }
+    .dg-card-chip.nature,
+    .mg-card-chip.nature { border-color: #5b9a5a; background: linear-gradient(160deg, #eef8ee 0%, #cfe8ce 100%); }
+    .dg-card-chip.light,
+    .mg-card-chip.light { border-color: #c2ad62; background: linear-gradient(160deg, #fff9e8 0%, #f7eec6 100%); }
+    .dg-card-chip.dark,
+    .mg-card-chip.dark,
+    .dg-card-chip.darkness,
+    .mg-card-chip.darkness { border-color: #6c5a7e; background: linear-gradient(160deg, #f5f1fa 0%, #ddd1ea 100%); }
+    .dg-card-chip.multi,
+    .mg-card-chip.neutral,
+    .mg-card-chip.multi { border-color: #8d969c; background: linear-gradient(160deg, #f4f6f8 0%, #dfe4e8 100%); }
+
+    .dg-card-chip.tapped,
+    .mg-card-chip.tapped {
+      transform: rotate(90deg);
+      transform-origin: center;
+    }
+
+    .dg-card-cost,
+    .mg-card-cost {
+      font-size: 0.62rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .dg-card-name,
+    .mg-card-name {
+      font-size: 0.62rem;
+      font-weight: 600;
+      text-align: center;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+
+    .dg-card-power,
+    .mg-card-power {
+      font-size: 0.6rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    @keyframes dmPulse {
+      0% { box-shadow: 0 0 0 0 rgba(219, 147, 84, 0.45); }
+      70% { box-shadow: 0 0 0 10px rgba(219, 147, 84, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(219, 147, 84, 0); }
+    }
+
+    /* Desktop full game */
+    .dg-full-root {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #f2f4f1;
+      color: #3d4a44;
+    }
+
+    .dg-full-header {
+      border-bottom: 1px solid #d8dfdb;
+      background: #fafbf9;
+      padding: 10px;
+    }
+
+    .dg-full-head-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dg-full-turn {
+      font-weight: 700;
+      color: #3d4a44;
+    }
+
+    .dg-full-state {
+      font-size: 0.82rem;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-weight: 700;
+      border: 1px solid #d6ddd8;
+      background: #eef1ef;
+    }
+
+    .dg-full-state.mine {
+      border-color: #8bb39e;
+      background: #e4f2eb;
+      color: #2f7b56;
+    }
+
+    .dg-full-state.opponent {
+      border-color: #c7ced6;
+      background: #f0f2f4;
+      color: #5a6a75;
+    }
+
+    .dg-full-match {
+      font-size: 0.8rem;
+      color: #6b7b72;
+    }
+
+    .dg-full-head-actions {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .dg-full-body {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+    }
+
+    .dg-full-body.solo {
+      grid-template-columns: 1fr;
+    }
+
+    .dg-full-body.online {
+      grid-template-columns: minmax(0, 1fr) 320px;
+    }
+
+    .dg-full-board {
+      overflow-y: auto;
+      padding: 10px;
+    }
+
+    .dg-full-chat {
+      border-left: 1px solid #d8dfdb;
+      background: #fafbf9;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      min-height: 0;
+    }
+
+    .dg-full-chat .dg-chat-messages {
+      flex: 1;
+      min-height: 120px;
+      max-height: none;
+    }
+
+    .dg-card-chip {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      align-items: center;
+      justify-items: center;
+      gap: 2px;
+    }
+
+    .dg-card-chip.shield.selected {
+      outline: 2px solid #d4846f;
+      outline-offset: 2px;
+    }
+
+    .dg-btn.guide {
+      animation: dmPulse 1.4s infinite;
+    }
+
+    .dg-btn.shield-break {
+      background: #8b6e96;
+    }
+
+    .dl-user-badge {
+      margin-bottom: 8px;
+      padding: 6px 8px;
+      font-size: 0.76rem;
+      color: #5c4d3b;
+      border: 1px solid #e2d3c0;
+      background: #f6ecdf;
+      border-radius: 6px;
+    }
+
+    .dl-search-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .dl-search-top {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .dl-search-thumb {
+      width: 56px;
+      height: 56px;
+      border-radius: 6px;
+      object-fit: cover;
+      border: 1px solid #d8dfe4;
+      background: #ecf1f4;
+      flex-shrink: 0;
+    }
+
+    .dl-search-thumb.placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.56rem;
+      color: #6f7d88;
+      font-weight: 700;
+    }
+
+    .dl-search-main {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .dl-search-cost {
+      min-width: 20px;
+      text-align: center;
+      font-weight: 700;
+      color: #5d6f80;
+      background: #e2e9ef;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      padding: 1px 6px;
+    }
+
+    .dl-search-meta {
+      margin-top: 3px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      font-size: 0.68rem;
+      color: #8a6f4f;
+    }
+
+    .dl-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 0.66rem;
+      font-weight: 700;
+      border: 1px solid transparent;
+      background: #e6ebee;
+      color: #465a6b;
+    }
+
+    .dl-badge.cost {
+      background: #e2e9ef;
+      color: #51677a;
+    }
+
+    .dl-badge.power {
+      background: #efe7de;
+      color: #715741;
+    }
+
+    .dl-badge.civ.fire { background: #fbe2d3; color: #8e4f2c; border-color: #e0b194; }
+    .dl-badge.civ.water { background: #dceafd; color: #355f8f; border-color: #9fbce6; }
+    .dl-badge.civ.nature { background: #dceddc; color: #356f35; border-color: #9ec79d; }
+    .dl-badge.civ.light { background: #f6f0d2; color: #7b6a2d; border-color: #dbc991; }
+    .dl-badge.civ.dark,
+    .dl-badge.civ.darkness { background: #e8deef; color: #55426b; border-color: #bda9d0; }
+    .dl-badge.civ.multi { background: #e6eaed; color: #54626d; border-color: #bac3c9; }
+
+    .dl-more-btn {
+      width: 100%;
+      margin-top: 6px;
+      padding: 6px;
+      border-radius: 4px;
+      border: 1px solid #d7dfda;
+      background: #f2f5f3;
+      color: #3d4a44;
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    .dl-more-btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    /* Mobile deck/search improvements */
+    .ml-user-badge {
+      margin-bottom: 10px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      border: 1px solid #e2d3c0;
+      background: #f6ecdf;
+      color: #6a5540;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .ml-search-item.fire,
+    .ml-search-item.water,
+    .ml-search-item.nature,
+    .ml-search-item.light,
+    .ml-search-item.darkness {
+      border-left-width: 5px;
+    }
+
+    .ml-search-item.fire { border-left-color: #d16f44; }
+    .ml-search-item.water { border-left-color: #4f86c5; }
+    .ml-search-item.nature { border-left-color: #5b9a5a; }
+    .ml-search-item.light { border-left-color: #c2ad62; }
+    .ml-search-item.darkness { border-left-color: #6c5a7e; }
+
+    .ml-search-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .ml-search-card-head {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .ml-search-main {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .ml-search-thumb {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      object-fit: cover;
+      border: 1px solid #d8dfe4;
+      background: #ecf1f4;
+      flex-shrink: 0;
+    }
+
+    .ml-search-thumb.placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.52rem;
+      color: #6f7d88;
+      font-weight: 700;
+    }
+
+    .ml-search-cost {
+      min-width: 22px;
+      text-align: center;
+      background: #e3e9ef;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: #5d6f80;
+      padding: 1px 6px;
+    }
+
+    .ml-search-meta {
+      margin-top: 2px;
+      font-size: 0.74rem;
+      color: #85694d;
+    }
+
+    .ml-search-empty {
+      text-align: center;
+      font-size: 0.82rem;
+      color: #7b8a80;
+      padding: 8px;
+    }
+
+    .ml-more-btn {
+      width: 100%;
+      margin-top: 8px;
+      padding: 9px;
+      border-radius: 6px;
+      border: 1px solid #d5dcd8;
+      background: #f2f5f3;
+      color: #3d4a44;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .ml-more-btn:disabled {
+      opacity: 0.65;
+      cursor: default;
+    }
+
+    /* Mobile game extensions */
+    .mg-card-chip.battle,
+    .mg-card-chip.mana,
+    .mg-card-chip.grave,
+    .mg-card-chip.hand {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      align-items: center;
+      justify-items: center;
+      gap: 2px;
+    }
+
+    .mg-card-chip.shield.selected {
+      outline: 2px solid #d4846f;
+      outline-offset: 2px;
+    }
+
+    .mg-btn.shield-break {
+      background: #8b6e96;
+    }
+
+    .mg-btn.guide {
+      animation: dmPulse 1.4s infinite;
+    }
+
+    .mg-sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+      z-index: 2450;
+    }
+
+    .mg-sheet-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .mg-hand-sheet {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: -240px;
+      background: #fafbf9;
+      border-top-left-radius: 14px;
+      border-top-right-radius: 14px;
+      border: 1px solid #dbe1dd;
+      box-shadow: 0 -8px 22px rgba(0,0,0,0.18);
+      padding: 14px;
+      transition: bottom .22s;
+      z-index: 2460;
+    }
+
+    .mg-hand-sheet.open {
+      bottom: 0;
+    }
+
+    .mg-hand-sheet-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #3d4a44;
+      margin-bottom: 10px;
+      text-align: center;
+      word-break: break-word;
+    }
+
+    .mg-hand-sheet-actions {
+      display: grid;
+      gap: 8px;
+    }
+
+    .mg-sheet-btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .mg-sheet-btn.battle { background: #7a9a7a; }
+    .mg-sheet-btn.mana { background: #7a94a8; }
+    .mg-sheet-btn.cancel { background: #8a8a8a; }
+
+    .mg-toast {
+      position: fixed;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      padding: 10px 14px;
+      border-radius: 999px;
+      color: #fff;
+      font-size: 0.82rem;
+      font-weight: 700;
+      z-index: 2800;
+      opacity: 0;
+      transition: opacity .2s;
+      pointer-events: none;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+      background: #4b647a;
+    }
+
+    .mg-toast.ok { background: #2f7b56; }
+    .mg-toast.warn { background: #a85f5f; }
+    .mg-toast.info { background: #4b647a; }
+
     @media (max-width: 1280px) {
       .dl-root {
         grid-template-columns: 230px 1fr 280px;
@@ -2063,6 +2561,15 @@
         grid-template-columns: 1fr;
         height: auto;
         min-height: 100vh;
+      }
+
+      .dg-full-body.online {
+        grid-template-columns: 1fr;
+      }
+
+      .dg-full-chat {
+        border-left: none;
+        border-top: 1px solid #d8dfdb;
       }
     }
 
@@ -2189,8 +2696,12 @@
    * ゲーム画面表示
    */
   async function showGameUI(account) {
-    // サーバーデッキ取得
-    window._serverDeckNames = await NetworkService.loadServerDecks(account.username, account.pin);
+    // サーバーデッキ取得（ゲストはスキップ）
+    if (account && !account.isGuest && account.pin) {
+      window._serverDeckNames = await NetworkService.loadServerDecks(account.username, account.pin);
+    } else {
+      window._serverDeckNames = [];
+    }
 
     // デバイス判定
     const isMobile = window.innerWidth < 768 || navigator.maxTouchPoints > 1;
@@ -2268,20 +2779,9 @@
    * ゲスト送信
    */
   async function submitGuest() {
-    AuthService.guest();
-    window._serverDeckNames = [];
-    
-    const isMobile = window.innerWidth < 768 || navigator.maxTouchPoints > 1;
-    
-    document.getElementById('auth-screen').classList.remove('active');
-    
-    if (isMobile) {
-      document.getElementById('app-mobile').classList.add('active');
-      initMobileUI();
-    } else {
-      document.getElementById('app-desktop').classList.add('active');
-      initDesktopUI();
-    }
+    const guestName = `ゲスト_${Math.floor(Math.random() * 9000 + 1000)}`;
+    AuthService.guestWithName(guestName);
+    await showGameUI(AuthService.getCurrentAccount());
   }
 
   /**

@@ -118,10 +118,24 @@ const AuthService = {
   },
 
   /**
+   * ゲストプレイ（名前付き）
+   * @param {string} name
+   */
+  guestWithName(name) {
+    const guestName = String(name || '').trim() || `ゲスト_${Math.floor(Math.random() * 9000 + 1000)}`;
+    this._account = { username: guestName, pin: null, isGuest: true };
+    try {
+      sessionStorage.setItem('dm_account', JSON.stringify(this._account));
+    } catch (e) {
+      console.error('SessionStorage保存失敗:', e);
+    }
+  },
+
+  /**
    * ゲストプレイ（アカウント不要）
    */
   guest() {
-    this.clearAccount();
+    this.guestWithName(`ゲスト_${Math.floor(Math.random() * 9000 + 1000)}`);
   },
 
   /**

@@ -26,7 +26,10 @@ class GameEngine {
       throw new Error('Invalid deck data');
     }
 
-    const expanded = this._expandFrom(deckData);
+    const expanded = this._expandFrom(deckData).map(card => ({
+      ...card,
+      tapped: false
+    }));
     const shuffled = this._shuffle(expanded);
 
     this.state = {
@@ -48,7 +51,8 @@ class GameEngine {
     for (let i = 0; i < 5 && this.state.deck.length; i++) {
       this.state.shields.push({
         ...this.state.deck.pop(),
-        faceUp: false
+        faceUp: false,
+        tapped: false
       });
     }
 
@@ -72,8 +76,10 @@ class GameEngine {
 
     // ゾーンに追加
     if (zone === 'battle') {
+      playedCard.tapped = false;
       this.state.battleZone.push(playedCard);
     } else if (zone === 'mana') {
+      playedCard.tapped = false;
       this.state.manaZone.push(playedCard);
     }
 
@@ -87,8 +93,58 @@ class GameEngine {
     if (this.state.deck.length === 0) return false;
 
     this._saveState();
-    this.state.hand.push(this.state.deck.pop());
+    const drawn = this.state.deck.pop();
+    if (!drawn) return false;
+    drawn.tapped = false;
+    this.state.hand.push(drawn);
     return true;
+  }
+
+  /**
+   * 指定ゾーンのカードをタップ/アンタップ
+   * @param {string} zone - 'battleZone' | 'manaZone' | 'battle' | 'mana'
+   * @param {number} cardIndex
+   */
+  tapCard(zone, cardIndex) {
+    const zoneMap = {
+      battle: 'battleZone',
+      mana: 'manaZone',
+      battleZone: 'battleZone',
+      manaZone: 'manaZone'
+    };
+    const zoneKey = zoneMap[zone] || zone;
+    const cards = this.state[zoneKey];
+
+    if (!Array.isArray(cards) || !cards[cardIndex]) return false;
+
+    this._saveState();
+    cards[cardIndex].tapped = !cards[cardIndex].tapped;
+    return true;
+  }
+
+  /**
+   * シールドをブレイクして手札に加える
+   * @param {number|null} targetShieldIndex
+   * @returns {Object|null}
+   */
+  breakShield(targetShieldIndex = null) {
+    if (this.state.shields.length === 0) return null;
+
+    this._saveState();
+    const idx = (targetShieldIndex !== null
+      && targetShieldIndex >= 0
+      && targetShieldIndex < this.state.shields.length)
+      ? targetShieldIndex
+      : 0;
+    const [broken] = this.state.shields.splice(idx, 1);
+    if (!broken) return null;
+
+    if (broken.faceUp !== undefined) {
+      delete broken.faceUp;
+    }
+    broken.tapped = false;
+    this.state.hand.push(broken);
+    return broken;
   }
 
   /**
@@ -151,8 +207,9 @@ class GameEngine {
     if (!card) return false;
 
     if (zoneKey === 'shields') {
-      this.state.shields.push({ ...card, faceUp: false });
+      this.state.shields.push({ ...card, faceUp: false, tapped: false });
     } else {
+      card.tapped = false;
       this.state[zoneKey].push(card);
     }
 
@@ -165,6 +222,9 @@ class GameEngine {
   turnEnd() {
     this._saveState();
     this.state.turn++;
+    [...this.state.battleZone, ...this.state.manaZone].forEach(card => {
+      card.tapped = false;
+    });
   }
 
   /**
