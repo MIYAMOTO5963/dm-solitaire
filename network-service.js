@@ -96,7 +96,7 @@ const NetworkService = {
    * API ベースURL（index.html で window.DM_API_BASE を設定可能）
    */
   getApiBase() {
-    return (typeof window !== 'undefined' && window.DM_API_BASE) || 'http://localhost:8765';
+    return (typeof window !== 'undefined' && window.DM_API_BASE) || window.location.origin;
   },
 
   /**

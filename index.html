@@ -3060,7 +3060,7 @@
 <!-- スクリプト読み込み -->
 <script>
   // API ベースURL（デプロイ時に上書き可能）
-  window.DM_API_BASE = window.DM_API_BASE || 'http://localhost:8765';
+  window.DM_API_BASE = window.DM_API_BASE || window.location.origin;
 </script>
 <script src="game-engine.js"></script>
 <script src="auth-service.js"></script>

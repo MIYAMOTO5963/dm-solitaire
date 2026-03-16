@@ -11,7 +11,7 @@ const AuthService = {
    * API ベースURL（NetworkService と共通）
    */
   _getApiBase() {
-    return (typeof window !== 'undefined' && window.DM_API_BASE) || 'http://localhost:8765';
+    return (typeof window !== 'undefined' && window.DM_API_BASE) || window.location.origin;
   },
 
   /**
@@ -77,13 +77,26 @@ const AuthService = {
         body: JSON.stringify({ username: String(username).trim(), pin: String(pin).trim() })
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data = {};
+
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        return {
+          success: false,
+          message: `サーバーエラー (${res.status})`
+        };
+      }
 
       if (res.ok && !data.error) {
         this.saveAccount(username, pin);
         return { success: true, message: 'ログイン成功' };
       }
-      return { success: false, message: data.error || 'ログイン失敗' };
+      return {
+        success: false,
+        message: data.error || `ログイン失敗 (${res.status})`
+      };
     } catch (error) {
       console.error('ログイン中にエラー:', error);
       return { success: false, message: 'ネットワークエラー: ' + error.message };
@@ -104,13 +117,26 @@ const AuthService = {
         body: JSON.stringify({ username: String(username).trim().slice(0, 20), pin: String(pin).trim() })
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data = {};
+
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        return {
+          success: false,
+          message: `サーバーエラー (${res.status})`
+        };
+      }
 
       if (res.ok && !data.error) {
         this.saveAccount(username, pin);
         return { success: true, message: '登録成功' };
       }
-      return { success: false, message: data.error || '登録失敗' };
+      return {
+        success: false,
+        message: data.error || `登録失敗 (${res.status})`
+      };
     } catch (error) {
       console.error('登録中にエラー:', error);
       return { success: false, message: 'ネットワークエラー: ' + error.message };
