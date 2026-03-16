@@ -27,6 +27,40 @@ function escapeAttrJsMobile(str) {
   return String(str ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
+function getMobileCardImageUrl(card) {
+  return String(
+    card?.imageUrl
+    || card?.img
+    || card?.thumb
+    || ''
+  ).trim();
+}
+
+function renderMobileCardThumb(card, className = 'ml-search-thumb') {
+  const url = getMobileCardImageUrl(card);
+  const alt = escapeHtmlMobile(card?.name || '');
+
+  if (!url) {
+    return `<div class="${className} placeholder">NO IMG</div>`;
+  }
+
+  return `
+    <img
+      src="${escapeHtmlMobile(url)}"
+      alt="${alt}"
+      class="${className}"
+      loading="lazy"
+      decoding="async"
+      onerror="handleMobileCardImageError(this)">
+  `;
+}
+
+function handleMobileCardImageError(img) {
+  if (!img) return;
+  img.onerror = null;
+  img.outerHTML = `<div class="${img.className} placeholder">NO IMG</div>`;
+}
+
 function countMobileDeckCards(cards) {
   if (!Array.isArray(cards)) return 0;
   return cards.reduce((sum, card) => sum + (Number(card?.count) || 1), 0);
@@ -542,9 +576,7 @@ function renderMobileSearchResults() {
     const civ = getMobileCardCivClass(card);
     const payload = encodeURIComponent(JSON.stringify(card));
     const cost = Number.isFinite(Number(card?.cost)) ? Number(card.cost) : '-';
-    const thumb = card.thumb
-      ? `<img src="${escapeHtmlMobile(card.thumb)}" alt="${escapeHtmlMobile(card.name)}" class="ml-search-thumb">`
-      : '<div class="ml-search-thumb placeholder">NO IMG</div>';
+    const thumb = renderMobileCardThumb(card);
     return `
       <div class="ml-search-item ${civ}">
         <div class="ml-search-card-head">
@@ -1108,12 +1140,14 @@ function renderMobileDeckEdit() {
  */
 function openMobileDeck(name) {
   const savedDecks = getSavedDecksMobile();
-  const cards = savedDecks[name] ? savedDecks[name] : [];
+  const cards = savedDecks[name]
+    ? JSON.parse(JSON.stringify(savedDecks[name])).map(card => NetworkService.normalizeCardData(card))
+    : [];
   if (window.GameController) {
     window.GameController.setDeckEditingState(name, cards);
   } else {
     window._deckEditing = name;
-    window._deckCards = JSON.parse(JSON.stringify(cards));
+    window._deckCards = cards;
   }
   renderMobileDeckEdit();
 }
@@ -1165,20 +1199,24 @@ function removeMobileCard(idx) {
 /**
  * デッキに カード追加（SP版）
  */
-function addToMobileDeck(cardJson) {
+async function addToMobileDeck(cardJson) {
   try {
-    const card = JSON.parse(cardJson);
+    const rawCard = JSON.parse(cardJson);
+    const card = await NetworkService.enrichCardImage(rawCard);
+    const normalized = NetworkService.normalizeCardData(card);
 
-    if (window.GameController) {
-      window._deckCards = window.GameController.addCardToDeck(window._deckCards, card, 4);
-    } else {
-      const existing = window._deckCards.find(c => c.id === card.id);
-      if (existing) {
-        existing.count = (existing.count || 1) + 1;
-        if (existing.count > 4) existing.count = 4;
-      } else {
-        window._deckCards.push({ ...card, count: 1 });
+    const existing = window._deckCards.find(c => c.id === normalized.id);
+    if (existing) {
+      existing.count = (existing.count || 1) + 1;
+      if (existing.count > 4) existing.count = 4;
+
+      if (!existing.imageUrl && normalized.imageUrl) {
+        existing.imageUrl = normalized.imageUrl;
+        existing.thumb = normalized.imageUrl;
+        existing.img = normalized.imageUrl;
       }
+    } else {
+      window._deckCards.push({ ...normalized, count: 1 });
     }
     
     renderMobileDeckEdit();
@@ -1204,7 +1242,7 @@ async function saveMobileDeck() {
   }
 
   const decks = getSavedDecksMobile();
-  decks[window._deckEditing] = window._deckCards;
+  decks[window._deckEditing] = window._deckCards.map(card => NetworkService.normalizeCardData(card));
   if (window.GameController) {
     window.GameController.saveSavedDecks(decks);
   } else {

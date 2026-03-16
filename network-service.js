@@ -4,6 +4,72 @@
  */
 
 const NetworkService = {
+  _cardDetailCache: new Map(),
+
+  normalizeCardData(card) {
+    if (!card || typeof card !== 'object') return card;
+
+    const imageUrl =
+      (typeof card?.imageUrl === 'string' && card.imageUrl.trim())
+      || (typeof card?.img === 'string' && card.img.trim())
+      || (typeof card?.thumb === 'string' && card.thumb.trim())
+      || '';
+
+    const civ = card?.civilization || card?.civ || '';
+
+    return {
+      ...card,
+      civilization: civ,
+      civ,
+      imageUrl,
+      thumb: imageUrl,
+      img: imageUrl
+    };
+  },
+
+  async fetchCardDetail(cardId) {
+    if (!cardId) return null;
+    const cacheKey = String(cardId);
+
+    if (this._cardDetailCache.has(cacheKey)) {
+      return this._cardDetailCache.get(cacheKey);
+    }
+
+    try {
+      const base = this.getApiBase();
+      const res = await fetch(`${base}/detail?id=${encodeURIComponent(cacheKey)}`, {
+        signal: this._abortSignal(10000)
+      });
+
+      if (!res.ok) {
+        console.warn('カード詳細取得失敗:', res.status, cacheKey);
+        return null;
+      }
+
+      const data = await res.json();
+      const normalized = this.normalizeCardData(data);
+      this._cardDetailCache.set(cacheKey, normalized);
+      return normalized;
+    } catch (error) {
+      console.error('カード詳細取得エラー:', error);
+      return null;
+    }
+  },
+
+  async enrichCardImage(card) {
+    const normalized = this.normalizeCardData(card);
+    if (!normalized) return normalized;
+    if (normalized.imageUrl) return normalized;
+
+    const detail = await this.fetchCardDetail(normalized.id);
+    if (!detail) return normalized;
+
+    return this.normalizeCardData({
+      ...normalized,
+      ...detail
+    });
+  },
+
   /**
    * API ベースURL（index.html で window.DM_API_BASE を設定可能）
    */
@@ -78,7 +144,9 @@ const NetworkService = {
 
       const data = await res.json();
       const deck = data.deck_data;
-      return Array.isArray(deck) ? deck : null;
+      return Array.isArray(deck)
+        ? deck.map(card => this.normalizeCardData(card))
+        : null;
     } catch (error) {
       console.error('デッキ取得エラー:', error);
       return null;
@@ -139,7 +207,8 @@ const NetworkService = {
       }
 
       const data = await res.json();
-      return Array.isArray(data.cards) ? data.cards : [];
+      const cards = Array.isArray(data.cards) ? data.cards : [];
+      return cards.map(card => this.normalizeCardData(card));
     } catch (error) {
       console.error('検索エラー:', error);
       return [];

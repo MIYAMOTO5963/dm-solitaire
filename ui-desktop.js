@@ -208,7 +208,7 @@ function renderDesktopSearchResults() {
     const power = card.power ? String(card.power) : '-';
     const civLabel = getCivLabel(civClass);
     const payload = encodeURIComponent(JSON.stringify(card));
-    const thumb = card.thumb ? `<img src="${escapeHtml(card.thumb)}" alt="${escapeHtml(card.name)}" class="dl-search-thumb">` : '<div class="dl-search-thumb placeholder">NO IMG</div>';
+    const thumb = renderDesktopCardThumb(card);
 
     return `
       <div class="dl-search-item">
@@ -252,6 +252,40 @@ function escapeHtml(str) {
 /** onclick 等のシングルクォート文字列用（デッキ名に ' が含まれると壊れるのを防ぐ） */
 function escapeAttrJs(str) {
   return String(str ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+function getDesktopCardImageUrl(card) {
+  return String(
+    card?.imageUrl
+    || card?.img
+    || card?.thumb
+    || ''
+  ).trim();
+}
+
+function renderDesktopCardThumb(card, className = 'dl-search-thumb') {
+  const url = getDesktopCardImageUrl(card);
+  const alt = escapeHtml(card?.name || '');
+
+  if (!url) {
+    return `<div class="${className} placeholder">NO IMG</div>`;
+  }
+
+  return `
+    <img
+      src="${escapeHtml(url)}"
+      alt="${alt}"
+      class="${className}"
+      loading="lazy"
+      decoding="async"
+      onerror="handleDesktopCardImageError(this)">
+  `;
+}
+
+function handleDesktopCardImageError(img) {
+  if (!img) return;
+  img.onerror = null;
+  img.outerHTML = `<div class="${img.className} placeholder">NO IMG</div>`;
 }
 
 function ensureDesktopChatLog() {
@@ -1147,12 +1181,14 @@ function renderDesktopDeckEdit() {
  */
 function openDesktopDeck(name) {
   const savedDecks = getSavedDecks();
-  const cards = savedDecks[name] ? savedDecks[name] : [];
+  const cards = savedDecks[name]
+    ? JSON.parse(JSON.stringify(savedDecks[name])).map(card => NetworkService.normalizeCardData(card))
+    : [];
   if (window.GameController) {
     window.GameController.setDeckEditingState(name, cards);
   } else {
     window._deckEditing = name;
-    window._deckCards = JSON.parse(JSON.stringify(cards));
+    window._deckCards = cards;
   }
   renderDesktopDeckEdit();
 }
@@ -1206,22 +1242,26 @@ function removeDesktopCard(idx) {
 /**
  * デッキに カード追加
  */
-function addToDesktopDeck(cardJson) {
+async function addToDesktopDeck(cardJson) {
   try {
-    const card = JSON.parse(cardJson);
+    const rawCard = JSON.parse(cardJson);
+    const card = await NetworkService.enrichCardImage(rawCard);
+    const normalized = NetworkService.normalizeCardData(card);
 
-    if (window.GameController) {
-      window._deckCards = window.GameController.addCardToDeck(window._deckCards, card, 4);
-    } else {
-      const existing = window._deckCards.find(c => c.id === card.id);
-      if (existing) {
-        existing.count = (existing.count || 1) + 1;
-        if (existing.count > 4) existing.count = 4;
-      } else {
-        window._deckCards.push({ ...card, count: 1 });
+    const existing = window._deckCards.find(c => c.id === normalized.id);
+    if (existing) {
+      existing.count = (existing.count || 1) + 1;
+      if (existing.count > 4) existing.count = 4;
+
+      if (!existing.imageUrl && normalized.imageUrl) {
+        existing.imageUrl = normalized.imageUrl;
+        existing.thumb = normalized.imageUrl;
+        existing.img = normalized.imageUrl;
       }
+    } else {
+      window._deckCards.push({ ...normalized, count: 1 });
     }
-    
+
     renderDesktopDeckEdit();
   } catch (e) {
     console.error('カード追加エラー:', e);
@@ -1245,7 +1285,7 @@ async function saveDesktopDeck() {
   }
 
   const decks = getSavedDecks();
-  decks[window._deckEditing] = window._deckCards;
+  decks[window._deckEditing] = window._deckCards.map(card => NetworkService.normalizeCardData(card));
   if (window.GameController) {
     window.GameController.saveSavedDecks(decks);
   } else {
