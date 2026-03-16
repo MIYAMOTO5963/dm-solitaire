@@ -1020,6 +1020,16 @@ class Handler(BaseHTTPRequestHandler):
     # ── POST handler ──────────────────────────────────────────────────────────
 
     def do_POST(self):
+        try:
+            self._do_post_impl()
+        except Exception as e:
+            print(f"[server-error] POST {self.path}: {e}", file=sys.stderr, flush=True)
+            try:
+                self._json({"error": "internal server error"}, 500)
+            except Exception:
+                pass
+
+    def _do_post_impl(self):
         parsed = urllib.parse.urlparse(self.path)
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length) if length > 0 else b"{}"
@@ -1303,6 +1313,16 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
     def do_GET(self):
+        try:
+            self._do_get_impl()
+        except Exception as e:
+            print(f"[server-error] GET {self.path}: {e}", file=sys.stderr, flush=True)
+            try:
+                self._json({"error": "internal server error"}, 500)
+            except Exception:
+                pass
+
+    def _do_get_impl(self):
         parsed = urllib.parse.urlparse(self.path)
         qs     = urllib.parse.parse_qs(parsed.query)
 
@@ -1386,6 +1406,7 @@ class Handler(BaseHTTPRequestHandler):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
         self._cors()
         self.end_headers()
         self.wfile.write(body)
