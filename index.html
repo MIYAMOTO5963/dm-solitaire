@@ -1053,11 +1053,12 @@
     .dl-editor-panel {
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
 
     .dl-editor-tools {
       display: grid;
-      grid-template-columns: 1fr repeat(4, auto);
+      grid-template-columns: 1fr repeat(3, auto);
       gap: 8px;
       margin-bottom: 10px;
       align-items: center;
@@ -1160,6 +1161,14 @@
       width: auto;
       margin-bottom: 0;
       padding: 8px 14px;
+    }
+
+    .dl-main-btn:disabled,
+    .dl-main-btn.disabled {
+      background: #9eacb8;
+      color: #eef2f5;
+      cursor: not-allowed;
+      opacity: 0.75;
     }
 
     .dl-game-board {
@@ -1316,13 +1325,18 @@
       margin-top: 10px;
       border-top: 1px solid rgba(160,126,92,0.22);
       padding-top: 10px;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
     }
 
     .dl-card-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
-      gap: 8px;
-      max-height: 44vh;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 10px;
+      min-height: 320px;
+      flex: 1;
       overflow-y: auto;
       padding-right: 4px;
     }
@@ -1349,7 +1363,7 @@
       align-items: center;
       justify-content: center;
       color: #7b6146;
-      font-size: 0.62rem;
+      font-size: 0.7rem;
       font-weight: 700;
       letter-spacing: 0.04em;
       background: linear-gradient(145deg, #efe7d9 0%, #dfd3bf 100%);
@@ -1359,8 +1373,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 3px 5px;
-      font-size: 0.64rem;
+      padding: 4px 6px;
+      font-size: 0.72rem;
       color: #503722;
       background: rgba(248, 240, 226, 0.92);
       border-top: 1px solid rgba(130,101,74,0.2);
@@ -3248,7 +3262,7 @@
       }
 
       .dl-editor-tools {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(3, 1fr);
       }
 
       .dl-editor-tools .dl-select {

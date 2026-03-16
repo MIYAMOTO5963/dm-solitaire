@@ -5,12 +5,52 @@
 
 const NetworkService = {
   _cardDetailCache: new Map(),
+  _searchCache: new Map(),
+  _searchCacheMaxEntries: 120,
+  _searchCacheTtlMs: 5 * 60 * 1000,
+
+  _wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  },
+
+  _searchCacheKey(q, page) {
+    return `${String(q || '').trim()}::${Number(page) || 1}`;
+  },
+
+  _setSearchCache(key, cards) {
+    this._searchCache.set(key, {
+      items: cards,
+      at: Date.now()
+    });
+
+    while (this._searchCache.size > this._searchCacheMaxEntries) {
+      const oldest = this._searchCache.keys().next().value;
+      if (oldest === undefined) break;
+      this._searchCache.delete(oldest);
+    }
+  },
+
+  clearSearchCache() {
+    this._searchCache.clear();
+  },
+
+  _stripSourcePrefix(value) {
+    const text = String(value || '').trim();
+    return text.startsWith('src:') ? text.slice(4) : text;
+  },
+
+  _detailLookupId(value) {
+    const text = this._stripSourcePrefix(value);
+    if (!text) return '';
+    if (text.includes('|')) return '';
+    return text;
+  },
 
   makeCardId(card) {
     if (!card || typeof card !== 'object') return '';
 
-    const sourceId = String(card?.sourceId || card?.id || '').trim();
-    if (sourceId) return `src:${sourceId}`;
+    const sourceId = this._stripSourcePrefix(card?.sourceId || card?.id);
+    if (sourceId && !sourceId.includes('|')) return `src:${sourceId}`;
 
     const name = String(card?.name || card?.nameEn || '').trim();
     const cost = String(card?.cost ?? '').trim();
@@ -23,20 +63,35 @@ const NetworkService = {
   normalizeCardData(card) {
     if (!card || typeof card !== 'object') return card;
 
+    const raw = (card?.card && typeof card.card === 'object')
+      ? { ...card.card, ...card }
+      : { ...card };
+    delete raw.card;
+
+    const name = String(raw?.name || raw?.card_name || raw?.title || '').trim();
+    const cost = raw?.cost ?? raw?.mana_cost ?? raw?.manaCost ?? '';
+    const civilization = raw?.civilization || raw?.civ || raw?.civil || '';
+    const sourceIdCandidate = this._stripSourcePrefix(raw?.sourceId || raw?.source_id || raw?.id || raw?.card_id || raw?.pageid);
+    const sourceId = sourceIdCandidate.includes('|') ? '' : sourceIdCandidate;
     const imageUrl =
-      (typeof card?.imageUrl === 'string' && card.imageUrl.trim())
-      || (typeof card?.img === 'string' && card.img.trim())
-      || (typeof card?.thumb === 'string' && card.thumb.trim())
+      (typeof raw?.imageUrl === 'string' && raw.imageUrl.trim())
+      || (typeof raw?.img === 'string' && raw.img.trim())
+      || (typeof raw?.thumb === 'string' && raw.thumb.trim())
+      || (typeof raw?.image === 'string' && raw.image.trim())
+      || (typeof raw?.image_url === 'string' && raw.image_url.trim())
       || '';
 
-    const civilization = card?.civilization || card?.civ || '';
-    const sourceId = String(card?.sourceId || card?.id || '').trim();
-    const cardId = String(card?.cardId || '').trim()
-      || this.makeCardId({ ...card, sourceId, civilization });
-    const id = sourceId || String(card?.id || cardId || '').trim();
+    const cardId = String(raw?.cardId || raw?.card_id || '').trim()
+      || this.makeCardId({ ...raw, sourceId, civilization, name, cost });
+    const id = sourceId || String(raw?.id || cardId || '').trim();
+    const countNum = Number(raw?.count);
+    const count = Number.isFinite(countNum) && countNum > 0 ? Math.floor(countNum) : 1;
 
     return {
-      ...card,
+      ...raw,
+      name,
+      cost,
+      count,
       id,
       sourceId,
       cardId,
@@ -49,8 +104,8 @@ const NetworkService = {
   },
 
   async fetchCardDetail(cardId) {
-    if (!cardId) return null;
-    const cacheKey = String(cardId);
+    const cacheKey = this._detailLookupId(cardId);
+    if (!cacheKey) return null;
 
     if (this._cardDetailCache.has(cacheKey)) {
       return this._cardDetailCache.get(cacheKey);
@@ -80,9 +135,11 @@ const NetworkService = {
   async enrichCardImage(card) {
     const normalized = this.normalizeCardData(card);
     if (!normalized) return normalized;
-    if (normalized.imageUrl) return normalized;
+    if (normalized.imageUrl && normalized.name && Number.isFinite(Number(normalized.cost))) return normalized;
 
-    const detailId = normalized.sourceId || normalized.id;
+    const detailId = this._detailLookupId(normalized.sourceId || normalized.id);
+    if (!detailId) return normalized;
+
     const detail = await this.fetchCardDetail(detailId);
     if (!detail) return normalized;
 
@@ -212,6 +269,41 @@ const NetworkService = {
   },
 
   /**
+   * サーバーのデッキを削除
+   * @param {string} username
+   * @param {string} pin
+   * @param {string} deckName
+   * @returns {Promise<{ok: true}|{error: string}>}
+   */
+  async deleteDeck(username, pin, deckName) {
+    try {
+      const base = this.getApiBase();
+      const res = await fetch(`${base}/deck/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, pin, deck_name: deckName }),
+        signal: this._abortSignal(10000)
+      });
+
+      const text = await res.text();
+      let data = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok) {
+        return { error: data.error || `デッキ削除に失敗しました (${res.status})` };
+      }
+      return { ok: true };
+    } catch (error) {
+      console.error('デッキ削除エラー:', error);
+      return { error: 'ネットワークエラーで削除できませんでした' };
+    }
+  },
+
+  /**
    * カード検索
    * @param {string} q - 検索クエリ
    * @param {number} page - ページ番号
@@ -219,8 +311,18 @@ const NetworkService = {
    */
   async searchCards(q, page = 1) {
     try {
+      const keyword = String(q || '').trim();
+      if (!keyword) return [];
+
+      const pageNumber = Number(page) || 1;
+      const cacheKey = this._searchCacheKey(keyword, pageNumber);
+      const cached = this._searchCache.get(cacheKey);
+      if (cached && (Date.now() - cached.at) < this._searchCacheTtlMs) {
+        return cached.items;
+      }
+
       const base = this.getApiBase();
-      const query = `q=${encodeURIComponent(q)}&page=${page}`;
+      const query = `q=${encodeURIComponent(keyword)}&page=${pageNumber}`;
       const res = await fetch(`${base}/search?${query}`, {
         signal: this._abortSignal(10000)
       });
@@ -232,7 +334,9 @@ const NetworkService = {
 
       const data = await res.json();
       const cards = Array.isArray(data.cards) ? data.cards : [];
-      return cards.map(card => this.normalizeCardData(card));
+      const normalized = cards.map(card => this.normalizeCardData(card));
+      this._setSearchCache(cacheKey, normalized);
+      return normalized;
     } catch (error) {
       console.error('検索エラー:', error);
       return [];
@@ -281,14 +385,45 @@ const NetworkService = {
   /**
    * アクション送信（状態・ターン終了）
    * @param {Object} payload - { room, p, type, turn, active, p1?, p2? }
+   * @returns {Promise<boolean>}
    */
-  sendAction(payload) {
+  async sendAction(payload) {
     const base = this.getApiBase();
-    fetch(`${base}/action`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).catch(() => {});
+    const maxRetries = 1;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const res = await fetch(`${base}/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: this._abortSignal(8000)
+        });
+
+        if (res.ok) {
+          return true;
+        }
+
+        const text = await res.text();
+        if (attempt < maxRetries) {
+          await this._wait(400 * (attempt + 1));
+          continue;
+        }
+
+        console.warn('sendAction失敗:', res.status, text || 'empty response');
+        return false;
+      } catch (error) {
+        if (attempt < maxRetries) {
+          await this._wait(400 * (attempt + 1));
+          continue;
+        }
+
+        console.warn('sendAction通信エラー:', error);
+        return false;
+      }
+    }
+
+    return false;
   },
 
   /**
