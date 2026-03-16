@@ -193,7 +193,9 @@ const NetworkService = {
           username,
           pin,
           deck_name: deckName,
-          deck_data: deckData
+          deck_data: Array.isArray(deckData)
+            ? deckData.map(card => this.normalizeCardData(card))
+            : []
         }),
         signal: this._abortSignal(10000)
       });

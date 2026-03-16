@@ -1267,7 +1267,7 @@ async function saveMobileDeckToCloud() {
   }
 
   const deckName = window._deckEditing;
-  const deckData = window._deckCards;
+  const deckData = window._deckCards.map(card => NetworkService.normalizeCardData(card));
   if (!deckName) return;
 
   const result = await NetworkService.saveDeck(account.username, account.pin, deckName, deckData);
