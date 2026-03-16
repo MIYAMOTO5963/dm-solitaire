@@ -1346,6 +1346,7 @@ function renderMobileDeckList() {
 
   const hasDeckSelected = !!deckName;
   const canSaveSelectedDeck = !!(hasDeckSelected && account && !account.isGuest && account.pin);
+  const canBulkCloudRestore = !!(account && !account.isGuest && account.pin && localDeckNames.length > 0);
   const canPlaySelectedDeck = !!(hasDeckSelected && countMobileDeckCards(orderedCards) > 0);
   const cardCount = countMobileDeckCards(orderedCards);
   const uniqueCount = orderedCards.length;
@@ -1396,6 +1397,7 @@ function renderMobileDeckList() {
         <div class="ml-builder-right">
           <button type="button" onclick="deleteSelectedMobileDeck()" ${hasDeckSelected ? '' : 'disabled'} class="ml-top-btn delete ${hasDeckSelected ? '' : 'disabled'}">削除</button>
           <button type="button" onclick="saveMobileDeck()" ${canSaveSelectedDeck ? '' : 'disabled'} class="ml-top-btn save ${canSaveSelectedDeck ? '' : 'disabled'}">保存</button>
+          <button type="button" onclick="restoreAllMobileLocalDecksToCloud()" ${canBulkCloudRestore ? '' : 'disabled'} class="ml-top-btn save ${canBulkCloudRestore ? '' : 'disabled'}">復元</button>
           <button type="button" onclick="playMobileDeckGame()" ${canPlaySelectedDeck ? '' : 'disabled'} class="ml-top-btn play ${canPlaySelectedDeck ? '' : 'disabled'}">一人回し</button>
           <button type="button" onclick="openSelectedMobileDeckOnline()" ${hasDeckSelected ? '' : 'disabled'} class="ml-top-btn online ${hasDeckSelected ? '' : 'disabled'}">オンライン対戦</button>
         </div>
@@ -3229,6 +3231,66 @@ async function addToMobileDeck(cardJson, addCount = 1) {
  */
 async function saveMobileDeck() {
   return saveMobileDeckToCloud();
+}
+
+async function restoreAllMobileLocalDecksToCloud() {
+  const account = AuthService.getCurrentAccount();
+  if (!account || account.isGuest || !account.pin) {
+    showMobileToast('復元にはPINログインが必要です', 'warn');
+    return;
+  }
+
+  const savedDecks = getSavedDecksMobile();
+  const deckNames = Object.keys(savedDecks).filter((name) => Array.isArray(savedDecks[name]));
+  if (!deckNames.length) {
+    showMobileToast('ローカル復元できるデッキがありません', 'warn');
+    return;
+  }
+
+  const ok = await askMobileConfirm(
+    `ローカル ${deckNames.length} 件をクラウドへ復元しますか？`,
+    '復元する',
+    '戻る'
+  );
+  if (!ok) return;
+
+  let success = 0;
+  let failed = 0;
+
+  for (const deckName of deckNames) {
+    const cards = savedDecks[deckName];
+    const normalized = Array.isArray(cards)
+      ? cards.map((card) => NetworkService.normalizeCardData(card))
+      : [];
+
+    const result = await NetworkService.saveDeck(account.username, account.pin, deckName, normalized);
+    if (!result || result.error) {
+      failed += 1;
+      console.warn('[deck-mobile] restore failed:', deckName, result && result.error ? result.error : 'unknown');
+      continue;
+    }
+
+    if (typeof NetworkService.clearDeckCache === 'function') {
+      NetworkService.clearDeckCache(deckName, account.username);
+    }
+    success += 1;
+  }
+
+  const names = await NetworkService.loadServerDecks(account.username, account.pin);
+  if (Array.isArray(names)) {
+    if (window.AppState) {
+      window.AppState.set('_serverDeckNames', names);
+    } else {
+      window._serverDeckNames = names;
+    }
+  }
+
+  if (failed > 0) {
+    showMobileToast(`クラウド復元: 成功${success}件 / 失敗${failed}件`, 'warn');
+  } else {
+    showMobileToast(`クラウド復元完了（${success}件）`, 'ok');
+  }
+  renderMobileDeckList();
 }
 
 async function saveMobileDeckToCloud() {

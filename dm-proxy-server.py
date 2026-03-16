@@ -19,6 +19,7 @@ import queue
 import random
 import re
 import secrets
+import shutil
 import sqlite3
 import string
 import sys
@@ -154,9 +155,41 @@ def _clean_rooms():
 
 # ─── SQLite card detail cache ──────────────────────────────────────────────────
 
-CACHE_DB  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dm_cache.db")
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_DB = os.path.join(_APP_DIR, "dm_cache.db")
+
+def _resolve_cache_db_path() -> str:
+    """Resolve SQLite DB path, preferring persistent volume paths when available."""
+    explicit = os.environ.get("CACHE_DB_PATH", "").strip()
+    if explicit:
+        return explicit
+
+    volume_mount = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH", "").strip()
+    if volume_mount:
+        return os.path.join(volume_mount, "dm_cache.db")
+
+    if os.path.isdir("/data"):
+        return os.path.join("/data", "dm_cache.db")
+
+    return _REPO_DB
+
+CACHE_DB  = _resolve_cache_db_path()
 CACHE_TTL = 90 * 86400  # 90 days
 CACHE_TTL_NO_IMAGE = 10 * 60  # 10 minutes for incomplete card detail
+
+
+def _bootstrap_cache_db_if_needed():
+    """If using an external DB path and file is missing, seed it from repo DB once."""
+    try:
+        cache_dir = os.path.dirname(CACHE_DB)
+        if cache_dir:
+            os.makedirs(cache_dir, exist_ok=True)
+
+        if CACHE_DB != _REPO_DB and not os.path.exists(CACHE_DB) and os.path.exists(_REPO_DB):
+            shutil.copy2(_REPO_DB, CACHE_DB)
+            print(f"[db] seeded cache DB from repo: {_REPO_DB} -> {CACHE_DB}", flush=True)
+    except Exception as e:
+        print(f"[db] bootstrap warning: {e}", file=sys.stderr, flush=True)
 
 
 def _verify_db_integrity():
@@ -177,6 +210,8 @@ def _verify_db_integrity():
 
 
 def _init_cache():
+    _bootstrap_cache_db_if_needed()
+    print(f"[db] using CACHE_DB: {CACHE_DB}", flush=True)
     con = sqlite3.connect(CACHE_DB)
     con.execute("""
         CREATE TABLE IF NOT EXISTS card_cache (

@@ -1065,6 +1065,7 @@ function renderDesktopDeckList() {
   const canCloudSave = !!(account && !account.isGuest && account.pin);
   const hasDeckSelected = !!deckName;
   const canSaveSelectedDeck = hasDeckSelected && canCloudSave;
+  const canBulkCloudRestore = canCloudSave && localDeckNames.length > 0;
 
   const cardCount = getDeckCardTotal(orderedCards);
   const uniqueCount = orderedCards.length;
@@ -1166,6 +1167,7 @@ function renderDesktopDeckList() {
           </select>
           <button onclick="deleteSelectedDesktopDeck()" ${hasDeckSelected ? '' : 'disabled'} class="dl-main-btn">削除</button>
           <button onclick="saveDesktopDeck()" ${canSaveSelectedDeck ? '' : 'disabled'} class="dl-main-btn ${canSaveSelectedDeck ? '' : 'disabled'}">保存</button>
+          <button onclick="restoreAllDesktopLocalDecksToCloud()" ${canBulkCloudRestore ? '' : 'disabled'} class="dl-main-btn ${canBulkCloudRestore ? '' : 'disabled'}">ローカル一括復元</button>
           <button onclick="playDesktopDeckGame()" ${hasDeckSelected && cardCount > 0 ? '' : 'disabled'} class="dl-main-btn ${hasDeckSelected && cardCount > 0 ? '' : 'disabled'}">一人回し</button>
         </div>
 
@@ -3500,6 +3502,66 @@ async function addToDesktopDeck(cardJson, addCount = 1) {
  */
 async function saveDesktopDeck() {
   return saveDesktopDeckToCloud();
+}
+
+async function restoreAllDesktopLocalDecksToCloud() {
+  const account = AuthService.getCurrentAccount();
+  if (!account || account.isGuest || !account.pin) {
+    showDesktopToast('復元にはPINログインが必要です', 'warn');
+    return;
+  }
+
+  const savedDecks = getSavedDecks();
+  const deckNames = Object.keys(savedDecks).filter((name) => Array.isArray(savedDecks[name]));
+  if (!deckNames.length) {
+    showDesktopToast('ローカル復元できるデッキがありません', 'warn');
+    return;
+  }
+
+  const ok = await askDesktopConfirm(
+    `ローカル ${deckNames.length} 件をクラウドへ復元しますか？`,
+    '復元する',
+    '戻る'
+  );
+  if (!ok) return;
+
+  let success = 0;
+  let failed = 0;
+
+  for (const deckName of deckNames) {
+    const cards = savedDecks[deckName];
+    const normalized = Array.isArray(cards)
+      ? cards.map((card) => NetworkService.normalizeCardData(card))
+      : [];
+
+    const result = await NetworkService.saveDeck(account.username, account.pin, deckName, normalized);
+    if (!result || result.error) {
+      failed += 1;
+      console.warn('[deck] restore failed:', deckName, result && result.error ? result.error : 'unknown');
+      continue;
+    }
+
+    if (typeof NetworkService.clearDeckCache === 'function') {
+      NetworkService.clearDeckCache(deckName, account.username);
+    }
+    success += 1;
+  }
+
+  const names = await NetworkService.loadServerDecks(account.username, account.pin);
+  if (Array.isArray(names)) {
+    if (window.AppState) {
+      window.AppState.set('_serverDeckNames', names);
+    } else {
+      window._serverDeckNames = names;
+    }
+  }
+
+  if (failed > 0) {
+    showDesktopToast(`クラウド復元: 成功${success}件 / 失敗${failed}件`, 'warn');
+  } else {
+    showDesktopToast(`クラウド復元完了（${success}件）`, 'ok');
+  }
+  renderDesktopDeckList();
 }
 
 async function saveDesktopDeckToCloud() {
