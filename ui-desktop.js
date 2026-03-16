@@ -425,42 +425,26 @@ function renderDesktopDeckList() {
   const userLabel = getDesktopUserLabel(account);
   
   container.innerHTML = `
-    <div class="dl-root">
-      
-      <!-- 左: カード検索パネル -->
-      <div class="dl-panel">
-        <h3 class="dl-heading">カード検索</h3>
-        <input type="text" id="desktop-search-input" placeholder="カード名..." 
-          class="dl-input"
-          onkeyup="onDesktopSearchInput(this.value)">
-        <div id="desktop-search-results" class="dl-stack dl-stack-tight"></div>
-      </div>
-      
-      <!-- 中央: デッキ一覧 -->
-      <div class="dl-panel">
-        <div class="dl-list-head">
-          <h3 class="dl-heading dl-heading-inline">デッキ一覧</h3>
-          ${userLabel ? `<div class="dl-user-badge">${escapeHtml(userLabel)}</div>` : ''}
+    <div class="dl-root dl-root-focus">
+      <div class="dl-panel dl-panel-focus">
+        <div class="dl-focus-head">
+          <div class="dl-focus-copy">
+            <h2 class="dl-focus-title">デッキを選択</h2>
+            <p class="dl-focus-sub">ログイン直後はデッキ選択だけに集中。カード検索は編集画面で表示されます。</p>
+          </div>
           <div class="dl-inline-actions">
             <button type="button" onclick="renderDesktopOnlineLobby()" class="dl-mini-btn dl-mini-btn-online">オンライン対戦</button>
             <button type="button" onclick="logout()" class="dl-mini-btn dl-mini-btn-ghost">ログアウト</button>
           </div>
         </div>
-        <button onclick="newDesktopDeck()" 
-          class="dl-main-btn">
-          新規デッキ
-        </button>
+
+        <div class="dl-focus-tools">
+          ${userLabel ? `<div class="dl-user-badge">${escapeHtml(userLabel)}</div>` : ''}
+          <button onclick="newDesktopDeck()" class="dl-main-btn">新規デッキ</button>
+        </div>
+
         <div id="desktop-deck-list" class="dl-stack"></div>
       </div>
-      
-      <!-- 右: ゲームボード -->
-      <div class="dl-panel dl-game-panel">
-        <h3 class="dl-heading" id="desktop-game-title">ゲーム情報</h3>
-        <div id="desktop-game-board" class="dl-game-board">
-          <p class="dl-empty-text">デッキを選択してゲーム開始</p>
-        </div>
-      </div>
-      
     </div>
   `;
   

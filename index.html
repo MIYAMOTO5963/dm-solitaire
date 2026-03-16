@@ -954,6 +954,59 @@
       background: #f2f4f1;
     }
 
+    .dl-root-focus {
+      grid-template-columns: 1fr;
+      place-items: start center;
+      padding: 24px;
+    }
+
+    .dl-panel-focus {
+      width: min(980px, 100%);
+      min-height: calc(100vh - 48px);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 18px;
+      background: linear-gradient(180deg, #fafbf9 0%, #f4f7f4 100%);
+      border: 1px solid #d7e0d8;
+      box-shadow: 0 10px 28px rgba(30, 52, 40, 0.07);
+    }
+
+    .dl-focus-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      border-bottom: 1px solid #dbe3dc;
+      padding-bottom: 10px;
+    }
+
+    .dl-focus-copy {
+      min-width: 0;
+    }
+
+    .dl-focus-title {
+      margin: 0;
+      font-size: 1.18rem;
+      color: #30463a;
+      letter-spacing: 0.02em;
+    }
+
+    .dl-focus-sub {
+      margin: 6px 0 0;
+      color: #5d7268;
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    .dl-focus-tools {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
     .dl-panel {
       background: #fafbf9;
       border-radius: 10px;
@@ -1698,6 +1751,13 @@
       margin-bottom: 10px;
       font-size: 0.95rem;
       color: #3d4a44;
+    }
+
+    .ml-helper-text {
+      margin: -2px 0 10px;
+      color: #6b7b72;
+      font-size: 0.83rem;
+      line-height: 1.45;
     }
 
     .ml-main-btn {
@@ -2970,6 +3030,15 @@
     @media (max-width: 1280px) {
       .dl-root {
         grid-template-columns: 230px 1fr 280px;
+      }
+
+      .dl-root-focus {
+        grid-template-columns: 1fr;
+        padding: 14px;
+      }
+
+      .dl-panel-focus {
+        min-height: calc(100vh - 28px);
       }
 
       .dol-root {

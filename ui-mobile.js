@@ -404,6 +404,7 @@ function renderMobileDeckList() {
         <!-- デッキ一覧 -->
         <div class="ml-panel">
           <h3 class="ml-heading">デッキを選択</h3>
+          <p class="ml-helper-text">ログイン直後はデッキ選択だけ表示。カード検索は編集画面で使えます。</p>
           <div class="ml-user-badge">${escapeHtmlMobile(userLabel)}</div>
           <button onclick="newMobileDeck()" 
             class="ml-main-btn">
@@ -411,16 +412,6 @@ function renderMobileDeckList() {
           </button>
           <div id="mobile-deck-list" class="ml-stack"></div>
         </div>
-        
-        <!-- カード検索 -->
-        <div class="ml-panel">
-          <h3 class="ml-heading">カード検索</h3>
-          <input type="text" id="mobile-search-input" placeholder="カード名..." 
-            class="ml-input"
-            onkeyup="onMobileSearchInput(this.value)">
-          <div id="mobile-search-results" class="ml-stack ml-stack-tight"></div>
-        </div>
-        
       </div>
     </div>
   `;
