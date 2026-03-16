@@ -1303,8 +1303,8 @@ class Handler(BaseHTTPRequestHandler):
             print(f"[deck] saved {username}/{deck_name}", flush=True)
             self._json({"ok": True})
 
-        # POST /deck/list  { username, pin }
-        elif parsed.path == "/deck/list":
+        # POST /deck/list | /deck/names  { username, pin }
+        elif parsed.path in ("/deck/list", "/deck/names"):
             username = data.get("username", "").strip()
             pin = str(data.get("pin", "")).strip()
 
@@ -1323,8 +1323,8 @@ class Handler(BaseHTTPRequestHandler):
             print(f"[deck] list {username} ({len(deck_list)} decks)", flush=True)
             self._json({"ok": True, "decks": deck_list})
 
-        # POST /deck/get  { username, pin, deck_name }
-        elif parsed.path == "/deck/get":
+        # POST /deck/get | /deck/fetch  { username, pin, deck_name }
+        elif parsed.path in ("/deck/get", "/deck/fetch"):
             username = data.get("username", "").strip()
             pin = str(data.get("pin", "")).strip()
             deck_name = data.get("deck_name", "").strip()
@@ -1445,8 +1445,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "room not found"}, 404)
             self._sse_stream(room, player)
 
-        # /deck/list, /deck/get are POST-only to keep PIN out of URL
-        elif parsed.path in ("/deck/list", "/deck/get"):
+        # /deck/list, /deck/names, /deck/get, /deck/fetch are POST-only to keep PIN out of URL
+        elif parsed.path in ("/deck/list", "/deck/names", "/deck/get", "/deck/fetch"):
             self._json({"error": "use POST for this endpoint"}, 405)
 
         # /search?q=...&page=1

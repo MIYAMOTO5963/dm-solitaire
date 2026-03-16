@@ -5472,10 +5472,14 @@
     // サーバーデッキ取得（ゲストはスキップ）
     if (account && !account.isGuest && account.pin) {
       const serverDeckNames = await NetworkService.loadServerDecks(account.username, account.pin);
-      if (window.AppState) {
-        window.AppState.set('_serverDeckNames', serverDeckNames);
+      if (Array.isArray(serverDeckNames)) {
+        if (window.AppState) {
+          window.AppState.set('_serverDeckNames', serverDeckNames);
+        } else {
+          window._serverDeckNames = serverDeckNames;
+        }
       } else {
-        window._serverDeckNames = serverDeckNames;
+        console.warn('クラウドデッキ一覧を取得できませんでした。既存一覧を保持します。');
       }
     } else {
       if (window.AppState) {

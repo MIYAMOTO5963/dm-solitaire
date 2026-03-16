@@ -3256,10 +3256,14 @@ async function deleteDesktopDeck(name) {
 
   if (canCloudDelete) {
     const names = await NetworkService.loadServerDecks(account.username, account.pin);
-    if (window.AppState) {
-      window.AppState.set('_serverDeckNames', names);
+    if (Array.isArray(names)) {
+      if (window.AppState) {
+        window.AppState.set('_serverDeckNames', names);
+      } else {
+        window._serverDeckNames = names;
+      }
     } else {
-      window._serverDeckNames = names;
+      showDesktopToast('クラウド一覧の更新に失敗しました（ローカル表示は維持）', 'warn');
     }
   }
 
@@ -3545,10 +3549,14 @@ async function saveDesktopDeckToCloud() {
   }
 
   const names = await NetworkService.loadServerDecks(account.username, account.pin);
-  if (window.AppState) {
-    window.AppState.set('_serverDeckNames', names);
+  if (Array.isArray(names)) {
+    if (window.AppState) {
+      window.AppState.set('_serverDeckNames', names);
+    } else {
+      window._serverDeckNames = names;
+    }
   } else {
-    window._serverDeckNames = names;
+    showDesktopToast('クラウド一覧の更新に失敗しました（ローカル保存のみ反映）', 'warn');
   }
   showDesktopToast('保存しました', 'ok');
   renderDesktopDeckList();

@@ -2987,10 +2987,14 @@ async function deleteMobileDeck(name) {
 
   if (canCloudDelete) {
     const names = await NetworkService.loadServerDecks(account.username, account.pin);
-    if (window.AppState) {
-      window.AppState.set('_serverDeckNames', names);
+    if (Array.isArray(names)) {
+      if (window.AppState) {
+        window.AppState.set('_serverDeckNames', names);
+      } else {
+        window._serverDeckNames = names;
+      }
     } else {
-      window._serverDeckNames = names;
+      showMobileToast('クラウド一覧の更新に失敗しました（ローカル表示は維持）', 'warn');
     }
   }
 
@@ -3274,10 +3278,14 @@ async function saveMobileDeckToCloud() {
   }
 
   const names = await NetworkService.loadServerDecks(account.username, account.pin);
-  if (window.AppState) {
-    window.AppState.set('_serverDeckNames', names);
+  if (Array.isArray(names)) {
+    if (window.AppState) {
+      window.AppState.set('_serverDeckNames', names);
+    } else {
+      window._serverDeckNames = names;
+    }
   } else {
-    window._serverDeckNames = names;
+    showMobileToast('クラウド一覧の更新に失敗しました（ローカル保存のみ反映）', 'warn');
   }
   showMobileToast('保存しました', 'ok');
   renderMobileDeckList();

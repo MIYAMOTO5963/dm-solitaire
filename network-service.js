@@ -357,33 +357,120 @@ const NetworkService = {
     return ctrl.signal;
   },
 
+  async _postJsonWithFallback(pathCandidates, payload, options = {}) {
+    const candidates = Array.isArray(pathCandidates)
+      ? pathCandidates.filter((path) => String(path || '').trim())
+      : [String(pathCandidates || '').trim()];
+    if (!candidates.length) {
+      return { ok: false, status: 0, data: {}, endpoint: '', error: new Error('no endpoint candidates') };
+    }
+
+    const retriesRaw = Number(options?.retries);
+    const retries = Number.isFinite(retriesRaw) ? Math.max(0, Math.min(4, Math.floor(retriesRaw))) : 2;
+    const retryDelayRaw = Number(options?.retryDelayMs);
+    const retryDelayMs = Number.isFinite(retryDelayRaw) ? Math.max(0, Math.floor(retryDelayRaw)) : 500;
+    const timeoutRaw = Number(options?.timeoutMs);
+    const timeoutMs = Number.isFinite(timeoutRaw) && timeoutRaw > 0 ? Math.floor(timeoutRaw) : 15000;
+
+    let lastStatus = 0;
+    let lastError = null;
+    let lastData = {};
+    let lastEndpoint = '';
+
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      for (const endpoint of candidates) {
+        lastEndpoint = endpoint;
+        try {
+          const base = this.getApiBase();
+          const res = await fetch(`${base}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload || {}),
+            signal: this._abortSignal(timeoutMs)
+          });
+
+          const data = await this._readJsonSafe(res);
+          lastStatus = res.status;
+          lastData = data;
+
+          if (res.ok) {
+            return { ok: true, status: res.status, data, endpoint, error: null };
+          }
+
+          // Candidate endpoint missing on old server: try next candidate.
+          if (res.status === 404 && endpoint !== candidates[candidates.length - 1]) {
+            continue;
+          }
+
+          // 5xx can be transient on hosted environments: retry.
+          if (res.status >= 500) {
+            continue;
+          }
+
+          // 4xx considered deterministic failure.
+          return { ok: false, status: res.status, data, endpoint, error: null };
+        } catch (error) {
+          lastError = error;
+        }
+      }
+
+      if (attempt < retries) {
+        await this._wait(retryDelayMs * (attempt + 1));
+      }
+    }
+
+    return {
+      ok: false,
+      status: lastStatus,
+      data: lastData,
+      endpoint: lastEndpoint,
+      error: lastError
+    };
+  },
+
   /**
    * サーバーデッキ一覧を取得
    * @param {string} username
    * @param {string} pin
-   * @returns {Promise<Array>} デッキ名配列
+   * @returns {Promise<Array|null>} デッキ名配列。通信障害時は null
    */
   async loadServerDecks(username, pin) {
-    try {
-      const base = this.getApiBase();
-      const res = await fetch(`${base}/deck/list`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, pin }),
-        signal: this._abortSignal(10000)
-      });
+    const result = await this._postJsonWithFallback(
+      ['/deck/names', '/deck/list'],
+      { username, pin },
+      { retries: 2, retryDelayMs: 500, timeoutMs: 15000 }
+    );
 
-      if (!res.ok) {
-        console.warn('デッキ一覧取得失敗:', res.status);
-        return [];
-      }
+    if (result.ok) {
+      const decks = result?.data?.decks;
+      return Array.isArray(decks) ? decks : [];
+    }
 
-      const data = await res.json();
-      return Array.isArray(data.decks) ? data.decks : [];
-    } catch (error) {
-      console.error('デッキ一覧取得エラー:', error);
+    if (result.status === 400 || result.status === 401) {
+      console.warn('デッキ一覧取得失敗:', result.status, result.endpoint);
       return [];
     }
+
+    console.error('デッキ一覧取得エラー:', result.error || result.status || 'unknown', result.endpoint);
+    return null;
+  },
+
+  /**
+   * デッキ一覧の取得結果が通信障害か判定
+   * @param {Array|null} value
+   * @returns {boolean}
+   */
+  isServerDeckListUnavailable(value) {
+    return value === null;
+  },
+
+  /**
+   * サーバーデッキ取得が通信障害か判定
+   * @param {Array|null} value
+   * @returns {boolean}
+   */
+  isServerDeckUnavailable(value) {
+    return value === null;
   },
 
   /**
@@ -400,35 +487,36 @@ const NetworkService = {
       return cached.items.map((card) => this.normalizeCardData(card));
     }
 
-    try {
-      const base = this.getApiBase();
-      const res = await fetch(`${base}/deck/get`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, pin, deck_name: deckName }),
-        signal: this._abortSignal(10000)
-      });
+    const result = await this._postJsonWithFallback(
+      ['/deck/fetch', '/deck/get'],
+      { username, pin, deck_name: deckName },
+      { retries: 2, retryDelayMs: 500, timeoutMs: 15000 }
+    );
 
-      if (!res.ok) {
-        console.warn('デッキ取得失敗:', res.status);
+    if (!result.ok) {
+      if (result.status === 404) {
         return null;
       }
 
-      const data = await res.json();
-      const deck = data.deck_data;
-      if (!Array.isArray(deck)) return null;
+      if (result.status === 400 || result.status === 401) {
+        console.warn('デッキ取得失敗:', result.status, result.endpoint);
+        return null;
+      }
 
-      const normalized = deck.map(card => this.normalizeCardData(card));
-      this._deckCache.set(cacheKey, {
-        items: normalized.map((card) => this.normalizeCardData(card)),
-        at: Date.now()
-      });
-
-      return normalized;
-    } catch (error) {
-      console.error('デッキ取得エラー:', error);
+      console.error('デッキ取得エラー:', result.error || result.status || 'unknown', result.endpoint);
       return null;
     }
+
+    const deck = result?.data?.deck_data;
+    if (!Array.isArray(deck)) return null;
+
+    const normalized = deck.map(card => this.normalizeCardData(card));
+    this._deckCache.set(cacheKey, {
+      items: normalized.map((card) => this.normalizeCardData(card)),
+      at: Date.now()
+    });
+
+    return normalized;
   },
 
   /**
