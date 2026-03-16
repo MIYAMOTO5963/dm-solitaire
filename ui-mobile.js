@@ -12,6 +12,7 @@ let _mobileSelectedHandIdx = null;
 let _mobileSearchDebounceTimer = null;
 let _mobileSearchController = null;
 let _mobileDelegatedEventsBound = false;
+let _mobileDeckHydrateToken = 0;
 let _mobileSearchState = { query: '', page: 0, items: [], hasMore: false, loading: false };
 
 function escapeHtmlMobile(str) {
@@ -38,7 +39,7 @@ function getMobileCardImageUrl(card) {
 
 function renderMobileCardThumb(card, className = 'ml-search-thumb') {
   const url = getMobileCardImageUrl(card);
-  const alt = escapeHtmlMobile(card?.name || '');
+  const alt = escapeHtmlMobile(getMobileCardDisplayName(card));
 
   if (!url) {
     return `<div class="${className} placeholder">NO IMG</div>`;
@@ -66,10 +67,51 @@ function countMobileDeckCards(cards) {
   return cards.reduce((sum, card) => sum + (Number(card?.count) || 1), 0);
 }
 
+function getMobileCardDisplayName(card) {
+  const name = String(card?.name || card?.nameEn || card?.cardName || '').trim();
+  if (name) return name;
+
+  const sourceId = String(card?.sourceId || card?.id || '').trim();
+  if (sourceId) return `ID:${sourceId}`;
+
+  const cardId = String(card?.cardId || '').trim();
+  return cardId || '名称不明';
+}
+
+function getMobileCardCostValue(card) {
+  const n = Number(card?.cost);
+  return Number.isFinite(n) ? n : 999;
+}
+
+function getMobileCardCostLabel(card) {
+  const cost = getMobileCardCostValue(card);
+  return cost === 999 ? '-' : String(cost);
+}
+
+function sortMobileDeckCards(cards) {
+  const next = Array.isArray(cards) ? [...cards] : [];
+  next.sort((a, b) => {
+    const costDiff = getMobileCardCostValue(a) - getMobileCardCostValue(b);
+    if (costDiff !== 0) return costDiff;
+
+    const countDiff = (Number(b?.count) || 1) - (Number(a?.count) || 1);
+    if (countDiff !== 0) return countDiff;
+
+    return getMobileCardDisplayName(a).localeCompare(getMobileCardDisplayName(b), 'ja');
+  });
+  return next;
+}
+
+function sortCurrentMobileDeckCards() {
+  const sorted = sortMobileDeckCards(window._deckCards || []);
+  window._deckCards = sorted;
+  return sorted;
+}
+
 function getMobileUserLabel(account) {
-  if (!account) return 'ゲスト';
-  if (account.isGuest) return `ゲスト: ${account.username || 'guest'}`;
-  return `ユーザー: ${account.username || ''}`;
+  if (!account) return 'Guest';
+  if (account.isGuest) return `Guest ${account.username || 'guest'}`;
+  return account.username || 'User';
 }
 
 function getMobileCardCivClass(card) {
@@ -386,90 +428,169 @@ function initMobileUI() {
  */
 function renderMobileDeckList() {
   const container = document.getElementById('app-mobile');
+  const savedDecks = getSavedDecksMobile();
   const account = AuthService.getCurrentAccount();
   const userLabel = getMobileUserLabel(account);
-  
+  const editingState = window.GameController
+    ? window.GameController.getDeckEditingState()
+    : { deckName: window._deckEditing, cards: window._deckCards };
+  let deckName = editingState.deckName;
+  let cards = Array.isArray(editingState.cards) ? editingState.cards : [];
+
+  const localDeckNames = Object.keys(savedDecks);
+  const cloudDeckNames = Array.isArray(window._serverDeckNames) ? window._serverDeckNames : [];
+  const mergedDeckNames = Array.from(new Set([...localDeckNames, ...cloudDeckNames]))
+    .sort((a, b) => String(a).localeCompare(String(b), 'ja'));
+
+  if (deckName && !mergedDeckNames.includes(deckName)) {
+    deckName = null;
+    cards = [];
+    if (window.GameController) {
+      window.GameController.setDeckEditingState(null, []);
+    } else {
+      window._deckEditing = null;
+      window._deckCards = [];
+    }
+  }
+
+  const orderedCards = sortMobileDeckCards(cards);
+  if (deckName) {
+    window._deckCards = orderedCards;
+  }
+
+  const hasDeckSelected = !!deckName;
+  const canSaveSelectedDeck = !!(hasDeckSelected && account && !account.isGuest && account.pin);
+  const canPlaySelectedDeck = !!(hasDeckSelected && countMobileDeckCards(orderedCards) > 0);
+  const cardCount = countMobileDeckCards(orderedCards);
+  const uniqueCount = orderedCards.length;
+
+  const deckOptionsHtml = mergedDeckNames.length
+    ? mergedDeckNames.map((name) => `
+      <option value="${escapeHtmlMobile(name)}" ${deckName === name ? 'selected' : ''}>${escapeHtmlMobile(name)}</option>
+    `).join('')
+    : '<option value="">デッキがありません</option>';
+
+  const deckGridHtml = orderedCards.length
+    ? orderedCards.map((card, i) => {
+      const civClass = getMobileCardCivClass(card);
+      const thumb = renderMobileCardThumb(card, 'ml-deck-thumb');
+      return `
+        <div class="ml-deck-tile ${civClass}">
+          ${thumb}
+          <div class="ml-deck-tile-name">${escapeHtmlMobile(getMobileCardDisplayName(card))}</div>
+          <div class="ml-deck-tile-meta">
+            <span>コスト ${escapeHtmlMobile(getMobileCardCostLabel(card))}</span>
+            <span>${escapeHtmlMobile(String(card.count || 1))}枚</span>
+          </div>
+          <div class="ml-deck-controls">
+            <button type="button" data-mg-action="dec-card" data-idx="${i}" class="ml-deck-btn minus">-</button>
+            <button type="button" data-mg-action="inc-card" data-idx="${i}" class="ml-deck-btn plus">+</button>
+            <button type="button" data-mg-action="remove-card" data-idx="${i}" class="ml-deck-btn delete">削除</button>
+          </div>
+        </div>
+      `;
+    }).join('')
+    : '<div class="ml-empty-decks">カードがありません。下の検索から追加してください。</div>';
+
   container.innerHTML = `
-    <div class="ml-root">
-      
-      <!-- ヘッダー -->
-      <div class="ml-header">
-        <span class="ml-title">DM Solitaire</span>
-        <button type="button" onclick="logout()" class="ml-logout-btn">ログアウト</button>
+    <div class="ml-root ml-builder-root">
+      <div class="ml-builder-top">
+        <div class="ml-builder-left">
+          <select id="mobile-deck-select" class="ml-input ml-builder-select" onchange="onMobileDeckSelectChange(this.value)">
+            <option value="">デッキを選択</option>
+            <option value="__new__">＋新規デッキ作成</option>
+            ${deckOptionsHtml}
+          </select>
+        </div>
+        <div class="ml-builder-center">
+          <div class="ml-builder-account">${escapeHtmlMobile(userLabel)}</div>
+          <button type="button" onclick="logout()" class="ml-account-logout">ログアウト</button>
+        </div>
+        <div class="ml-builder-right">
+          <button type="button" onclick="deleteSelectedMobileDeck()" ${hasDeckSelected ? '' : 'disabled'} class="ml-top-btn delete ${hasDeckSelected ? '' : 'disabled'}">削除</button>
+          <button type="button" onclick="saveMobileDeck()" ${canSaveSelectedDeck ? '' : 'disabled'} class="ml-top-btn save ${canSaveSelectedDeck ? '' : 'disabled'}">保存</button>
+          <button type="button" onclick="playMobileDeckGame()" ${canPlaySelectedDeck ? '' : 'disabled'} class="ml-top-btn play ${canPlaySelectedDeck ? '' : 'disabled'}">一人回し</button>
+          <button type="button" onclick="openSelectedMobileDeckOnline()" ${hasDeckSelected ? '' : 'disabled'} class="ml-top-btn online ${hasDeckSelected ? '' : 'disabled'}">オンライン対戦</button>
+        </div>
       </div>
-      
-      <!-- メインコンテンツ -->
-      <div class="ml-main">
-        
-        <!-- デッキ一覧 -->
-        <div class="ml-panel">
-          <h3 class="ml-heading">デッキを選択</h3>
-          <p class="ml-helper-text">ログイン直後はデッキ選択だけ表示。カード検索は編集画面で使えます。</p>
-          <div class="ml-user-badge">${escapeHtmlMobile(userLabel)}</div>
-          <button onclick="newMobileDeck()" 
-            class="ml-main-btn">
-            新規デッキ
-          </button>
-          <div id="mobile-deck-list" class="ml-stack"></div>
+
+      <div class="ml-main ml-builder-main">
+        <div class="ml-panel ml-builder-summary">
+          <div class="ml-summary-name">${hasDeckSelected ? escapeHtmlMobile(deckName) : 'デッキ未選択'}</div>
+          <div class="ml-summary-stats">合計 ${cardCount}枚 / ユニーク ${uniqueCount}</div>
+        </div>
+
+        <div class="ml-panel ml-deck-grid-wrap">
+          <h3 class="ml-heading">デッキ表示</h3>
+          <div class="ml-deck-grid">
+            ${hasDeckSelected ? deckGridHtml : '<div class="ml-empty-decks">左上でデッキを選択してください。</div>'}
+          </div>
+        </div>
+
+        <div class="ml-panel ml-builder-search">
+          <h3 class="ml-heading">カード名検索</h3>
+          <input
+            type="text"
+            id="mobile-search-input"
+            placeholder="カード名..."
+            value="${escapeHtmlMobile(_mobileSearchState.query || '')}"
+            class="ml-input"
+            onkeyup="onMobileSearchInput(this.value)">
+          <div id="mobile-search-results" class="ml-stack ml-stack-tight"></div>
         </div>
       </div>
     </div>
   `;
-  
-  updateMobileDeckList();
+
+  if (_mobileSearchState.query) {
+    renderMobileSearchResults();
+  }
 }
 
 /**
  * デッキ一覧を更新
  */
 function updateMobileDeckList() {
-  const savedDecks = getSavedDecksMobile();
-  const account = AuthService.getCurrentAccount();
-  
-  const deckList = document.getElementById('mobile-deck-list');
-  deckList.innerHTML = '';
-  
-  // ローカルデッキ
-  for (const [name, cards] of Object.entries(savedDecks)) {
-    const count = countMobileDeckCards(cards);
-    const civDots = renderMobileDeckCivDots(cards);
-    const encodedName = encodeURIComponent(name);
-    const el = document.createElement('div');
-    el.className = 'ml-deck-item';
-    el.innerHTML = `
-      <div class="ml-deck-name">${escapeHtmlMobile(name)}</div>
-      <div class="ml-deck-meta">デッキ: ${count}枚</div>
-      <div class="ml-civ-dots" title="文明構成">${civDots}</div>
-      <div class="ml-item-actions">
-        <button type="button" data-mg-action="open-deck" data-deck="${encodedName}" class="ml-item-btn edit">編集</button>
-        <button type="button" data-mg-action="start-game" data-deck="${encodedName}" class="ml-item-btn play">一人回し</button>
-        <button type="button" data-mg-action="open-online" data-deck="${encodedName}" class="ml-item-btn online">オンライン</button>
-        <button type="button" data-mg-action="delete-deck" data-deck="${encodedName}" class="ml-item-btn delete">削除</button>
-      </div>
-    `;
-    deckList.appendChild(el);
-  }
-  
-  // サーバーデッキ
-  if (account && !account.isGuest && account.pin && window._serverDeckNames) {
-    for (const name of window._serverDeckNames) {
-      const encodedName = encodeURIComponent(name);
-      const el = document.createElement('div');
-      el.className = 'ml-deck-item cloud';
-      el.innerHTML = `
-        <div class="ml-deck-name">クラウド: ${escapeHtmlMobile(name)}</div>
-        <div class="ml-item-actions ml-item-actions-cloud">
-          <button type="button" data-mg-action="start-game" data-deck="${encodedName}" class="ml-item-btn play">一人回し</button>
-          <button type="button" data-mg-action="open-online" data-deck="${encodedName}" class="ml-item-btn online">オンライン</button>
-        </div>
-      `;
-      deckList.appendChild(el);
-    }
-  }
+  renderMobileDeckList();
+}
 
-  if (!deckList.children.length) {
-    deckList.innerHTML = '<div class="ml-empty-decks">デッキがありません。まずは新規デッキを作成してください。</div>';
+function onMobileDeckSelectChange(name) {
+  const deckName = String(name || '').trim();
+  if (deckName === '__new__') {
+    newMobileDeck();
+    return;
   }
+  if (!deckName) {
+    clearMobileDeckSelection();
+    return;
+  }
+  openMobileDeck(deckName);
+}
+
+function deleteSelectedMobileDeck() {
+  if (!window._deckEditing) {
+    showMobileToast('先に編集するデッキを選択してください', 'warn');
+    return;
+  }
+  deleteMobileDeck(window._deckEditing);
+}
+
+function openSelectedMobileDeckOnline() {
+  if (!window._deckEditing) {
+    showMobileToast('先に編集するデッキを選択してください', 'warn');
+    return;
+  }
+  showMobileOnlineModal(window._deckEditing);
+}
+
+function clearMobileDeckSelection() {
+  if (window.GameController) {
+    window.GameController.setDeckEditingState(null, []);
+  } else {
+    window._deckEditing = null;
+    window._deckCards = [];
+  }
+  renderMobileDeckList();
 }
 
 /**
@@ -566,7 +687,8 @@ function renderMobileSearchResults() {
   const rows = cards.map(card => {
     const civ = getMobileCardCivClass(card);
     const payload = encodeURIComponent(JSON.stringify(card));
-    const cost = Number.isFinite(Number(card?.cost)) ? Number(card.cost) : '-';
+    const cost = getMobileCardCostLabel(card);
+    const cardName = getMobileCardDisplayName(card);
     const thumb = renderMobileCardThumb(card);
     return `
       <div class="ml-search-item ${civ}">
@@ -574,7 +696,7 @@ function renderMobileSearchResults() {
           ${thumb}
           <div class="ml-search-main">
             <div class="ml-search-row">
-              <div class="ml-search-name">${escapeHtmlMobile(card.name)}</div>
+              <div class="ml-search-name">${escapeHtmlMobile(cardName)}</div>
               <div class="ml-search-cost">${escapeHtmlMobile(String(cost))}</div>
             </div>
             <div class="ml-search-meta">${escapeHtmlMobile(String(card?.civilization || ''))}</div>
@@ -1022,131 +1144,201 @@ function undoMobileGame() {
 }
 
 function newMobileDeck() {
-  const name = prompt('デッキ名を入力:');
+  const name = String(prompt('デッキ名を入力:') || '').trim();
   if (!name) return;
-  
+
   const decks = getSavedDecksMobile();
   if (decks[name]) {
     showMobileToast('このデッキは既に存在します', 'warn');
     return;
   }
-  
+
   decks[name] = [];
   if (window.GameController) {
     window.GameController.saveSavedDecks(decks);
+    window.GameController.setDeckEditingState(name, []);
   } else {
     localStorage.setItem('dm_decks', JSON.stringify(decks));
+    window._deckEditing = name;
+    window._deckCards = [];
   }
-  updateMobileDeckList();
+  renderMobileDeckList();
 }
 
 async function deleteMobileDeck(name) {
   const ok = await askMobileConfirm('削除してよろしいですか？', '削除', 'キャンセル');
   if (!ok) return;
-  
-  const decks = getSavedDecksMobile();
-  delete decks[name];
-  if (window.GameController) {
-    window.GameController.saveSavedDecks(decks);
-  } else {
-    localStorage.setItem('dm_decks', JSON.stringify(decks));
+
+  const deckName = String(name || '').trim();
+  if (!deckName) return;
+
+  const account = AuthService.getCurrentAccount();
+  const canCloudDelete = !!(account && !account.isGuest && account.pin);
+  let cloudDeleteError = '';
+  let deletedCloud = false;
+
+  if (canCloudDelete) {
+    const result = await NetworkService.deleteDeck(account.username, account.pin, deckName);
+    if (result?.ok) {
+      deletedCloud = true;
+    } else if (result?.error) {
+      cloudDeleteError = result.error;
+    }
   }
-  showMobileToast('デッキを削除しました', 'ok');
-  updateMobileDeckList();
+
+  const decks = getSavedDecksMobile();
+  const hadLocalDeck = Object.prototype.hasOwnProperty.call(decks, deckName);
+  if (hadLocalDeck) {
+    delete decks[deckName];
+  }
+
+  if (window.GameController) {
+    if (hadLocalDeck) {
+      window.GameController.saveSavedDecks(decks);
+    }
+    if (window._deckEditing === deckName) {
+      window.GameController.setDeckEditingState(null, []);
+    }
+  } else {
+    if (hadLocalDeck) {
+      localStorage.setItem('dm_decks', JSON.stringify(decks));
+    }
+    if (window._deckEditing === deckName) {
+      window._deckEditing = null;
+      window._deckCards = [];
+    }
+  }
+
+  if (canCloudDelete) {
+    const names = await NetworkService.loadServerDecks(account.username, account.pin);
+    if (window.AppState) {
+      window.AppState.set('_serverDeckNames', names);
+    } else {
+      window._serverDeckNames = names;
+    }
+  }
+
+  if (!deletedCloud && !hadLocalDeck) {
+    showMobileToast(cloudDeleteError || 'デッキが見つかりませんでした', 'warn');
+    renderMobileDeckList();
+    return;
+  }
+
+  if (cloudDeleteError && hadLocalDeck) {
+    showMobileToast(`ローカルから削除しました（クラウド削除失敗: ${cloudDeleteError}）`, 'warn');
+  } else {
+    showMobileToast('デッキを削除しました', 'ok');
+  }
+  renderMobileDeckList();
 }
 
 /**
  * SP版 デッキ編集画面
  */
 function renderMobileDeckEdit() {
-  const container = document.getElementById('app-mobile');
-  const editingState = window.GameController
-    ? window.GameController.getDeckEditingState()
-    : { deckName: window._deckEditing, cards: window._deckCards };
-  const deckName = editingState.deckName;
-  const cards = editingState.cards;
-  const account = AuthService.getCurrentAccount();
-  const canCloudSave = !!(account && !account.isGuest && account.pin);
-  
-  const cardCount = cards.reduce((sum, c) => sum + (c.count || 1), 0);
-  
-  container.innerHTML = `
-    <div class="ml-root">
-      
-      <!-- ヘッダー -->
-      <div class="ml-header ml-edit-header">
-        <button type="button" onclick="renderMobileDeckList()" class="ml-back-btn">←</button>
-        <span class="ml-edit-title">${escapeHtmlMobile(deckName)}</span>
-        <span class="ml-edit-count">${cardCount}/40</span>
-      </div>
-      
-      <!-- メインコンテンツ -->
-      <div class="ml-main">
-        
-        <!-- カード検索 -->
-        <div class="ml-panel">
-          <h3 class="ml-heading">カード追加</h3>
-          <input type="text" id="mobile-search-input" placeholder="カード名..." 
-            class="ml-input"
-            onkeyup="onMobileSearchInput(this.value)">
-          <div id="mobile-search-results" class="ml-stack ml-stack-tight"></div>
-        </div>
-        
-        <!-- デッキリスト -->
-        <div class="ml-panel">
-          <h3 class="ml-heading">デッキカード</h3>
-          <div id="mobile-deck-cards" class="ml-stack">
-            ${cards.map((c, i) => `
-              <div class="ml-edit-card">
-                <div class="ml-edit-card-name">${escapeHtmlMobile(c.name)}</div>
-                <div class="ml-edit-card-row">
-                  <span class="ml-edit-card-text">${escapeHtmlMobile(c.text || '')}</span>
-                  <div class="ml-count-controls">
-                    <button type="button" data-mg-action="dec-card" data-idx="${i}" class="ml-count-btn minus">−</button>
-                    <span class="ml-count-num">${c.count || 1}</span>
-                    <button type="button" data-mg-action="inc-card" data-idx="${i}" class="ml-count-btn plus">+</button>
-                    <button type="button" data-mg-action="remove-card" data-idx="${i}" class="ml-count-btn delete">削除</button>
-                  </div>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-        
-      </div>
-      
-      <!-- ボタン -->
-      <div class="ml-edit-actions">
-        <button onclick="playMobileDeckGame()" class="ml-edit-btn play">一人回しを開始</button>
-        <button onclick="saveMobileDeck()" class="ml-edit-btn save">💾 保存</button>
-        <button onclick="saveMobileDeckToCloud()" ${canCloudSave ? '' : 'disabled'} class="ml-edit-btn cloud ${canCloudSave ? '' : 'disabled'}">☁ 保存</button>
-      </div>
-      
-    </div>
-  `;
+  renderMobileDeckList();
 }
 
 /**
  * デッキ編集を開く（SP版）
  */
-function openMobileDeck(name) {
-  const savedDecks = getSavedDecksMobile();
-  const cards = savedDecks[name]
-    ? JSON.parse(JSON.stringify(savedDecks[name])).map(card => NetworkService.normalizeCardData(card))
+function isMobileCardHydrationNeeded(card) {
+  const hasName = !!String(card?.name || '').trim();
+  const hasImage = !!getMobileCardImageUrl(card);
+  const hasCost = Number.isFinite(Number(card?.cost));
+  return !(hasName && hasImage && hasCost);
+}
+
+async function hydrateMobileDeckCards(cards) {
+  const normalizedCards = Array.isArray(cards)
+    ? cards.map(card => NetworkService.normalizeCardData(card))
     : [];
-  if (window.GameController) {
-    window.GameController.setDeckEditingState(name, cards);
-  } else {
-    window._deckEditing = name;
-    window._deckCards = cards;
+
+  if (!normalizedCards.length) return null;
+  if (!normalizedCards.some(isMobileCardHydrationNeeded)) return null;
+
+  const hydrated = await Promise.all(normalizedCards.map(async (card) => {
+    if (!isMobileCardHydrationNeeded(card)) {
+      return card;
+    }
+    const enriched = await NetworkService.enrichCardImage(card);
+    return NetworkService.normalizeCardData(enriched);
+  }));
+
+  return hydrated;
+}
+
+async function openMobileDeck(name) {
+  const deckName = String(name || '').trim();
+  if (!deckName) {
+    clearMobileDeckSelection();
+    return;
   }
-  renderMobileDeckEdit();
+
+  try {
+    const savedDecks = getSavedDecksMobile();
+    let cards = [];
+
+    if (Array.isArray(savedDecks[deckName])) {
+      cards = JSON.parse(JSON.stringify(savedDecks[deckName])).map(card => NetworkService.normalizeCardData(card));
+    } else {
+      const account = AuthService.getCurrentAccount();
+      if (account && !account.isGuest && account.pin) {
+        const remoteDeck = await NetworkService.fetchServerDeck(account.username, account.pin, deckName);
+        cards = Array.isArray(remoteDeck)
+          ? remoteDeck.map(card => NetworkService.normalizeCardData(card))
+          : [];
+      }
+    }
+
+    const sortedCards = sortMobileDeckCards(cards);
+    if (window.GameController) {
+      window.GameController.setDeckEditingState(deckName, sortedCards);
+    } else {
+      window._deckEditing = deckName;
+      window._deckCards = sortedCards;
+    }
+    renderMobileDeckList();
+
+    const hydrateToken = ++_mobileDeckHydrateToken;
+    const hydratedCards = await hydrateMobileDeckCards(sortedCards);
+    if (!hydratedCards) return;
+    if (hydrateToken !== _mobileDeckHydrateToken) return;
+    if (window._deckEditing !== deckName) return;
+
+    const hydratedSorted = sortMobileDeckCards(hydratedCards);
+    if (window.GameController) {
+      window.GameController.setDeckEditingState(deckName, hydratedSorted);
+    } else {
+      window._deckCards = hydratedSorted;
+    }
+
+    const decks = getSavedDecksMobile();
+    if (Array.isArray(decks[deckName])) {
+      decks[deckName] = hydratedSorted.map(card => NetworkService.normalizeCardData(card));
+      if (window.GameController) {
+        window.GameController.saveSavedDecks(decks);
+      } else {
+        localStorage.setItem('dm_decks', JSON.stringify(decks));
+      }
+    }
+
+    renderMobileDeckList();
+  } catch (error) {
+    console.error('デッキ読み込みエラー:', error);
+    showMobileToast('デッキの読み込みに失敗しました', 'warn');
+  }
 }
 
 /**
  * カード枚数増加（SP版）
  */
 function incrementMobileCardCount(idx) {
+  if (!window._deckEditing) {
+    showMobileToast('先に編集するデッキを選択してください', 'warn');
+    return;
+  }
+
   if (window.GameController) {
     window._deckCards = window.GameController.changeDeckCardCount(window._deckCards, idx, 1, 1, 4);
   } else {
@@ -1155,13 +1347,19 @@ function incrementMobileCardCount(idx) {
     card.count = (card.count || 1) + 1;
     if (card.count > 4) card.count = 4;
   }
-  renderMobileDeckEdit();
+  sortCurrentMobileDeckCards();
+  renderMobileDeckList();
 }
 
 /**
  * カード枚数減少（SP版）
  */
 function decrementMobileCardCount(idx) {
+  if (!window._deckEditing) {
+    showMobileToast('先に編集するデッキを選択してください', 'warn');
+    return;
+  }
+
   if (window.GameController) {
     window._deckCards = window.GameController.changeDeckCardCount(window._deckCards, idx, -1, 1, 4);
   } else {
@@ -1172,19 +1370,26 @@ function decrementMobileCardCount(idx) {
       window._deckCards.splice(idx, 1);
     }
   }
-  renderMobileDeckEdit();
+  sortCurrentMobileDeckCards();
+  renderMobileDeckList();
 }
 
 /**
  * カード削除（SP版）
  */
 function removeMobileCard(idx) {
+  if (!window._deckEditing) {
+    showMobileToast('先に編集するデッキを選択してください', 'warn');
+    return;
+  }
+
   if (window.GameController) {
     window._deckCards = window.GameController.removeDeckCard(window._deckCards, idx);
   } else {
     window._deckCards.splice(idx, 1);
   }
-  renderMobileDeckEdit();
+  sortCurrentMobileDeckCards();
+  renderMobileDeckList();
 }
 
 /**
@@ -1192,6 +1397,11 @@ function removeMobileCard(idx) {
  */
 async function addToMobileDeck(cardJson) {
   try {
+    if (!window._deckEditing) {
+      showMobileToast('先に編集するデッキを選択してください', 'warn');
+      return;
+    }
+
     const rawCard = JSON.parse(cardJson);
     const card = await NetworkService.enrichCardImage(rawCard);
     const normalized = NetworkService.normalizeCardData(card);
@@ -1217,8 +1427,9 @@ async function addToMobileDeck(cardJson) {
     } else {
       window._deckCards.push({ ...normalized, count: 1 });
     }
-    
-    renderMobileDeckEdit();
+
+    sortCurrentMobileDeckCards();
+    renderMobileDeckList();
   } catch (e) {
     console.error('カード追加エラー:', e);
   }
@@ -1228,6 +1439,15 @@ async function addToMobileDeck(cardJson) {
  * デッキ保存（SP版）
  */
 async function saveMobileDeck() {
+  return saveMobileDeckToCloud();
+}
+
+async function saveMobileDeckToCloud() {
+  if (!window._deckEditing) {
+    showMobileToast('先に編集するデッキを選択してください', 'warn');
+    return;
+  }
+
   const total = window.GameController
     ? window.GameController.countDeckCards(window._deckCards)
     : countMobileDeckCards(window._deckCards);
@@ -1240,20 +1460,9 @@ async function saveMobileDeck() {
     if (!ok) return;
   }
 
-  const decks = getSavedDecksMobile();
-  decks[window._deckEditing] = window._deckCards.map(card => NetworkService.normalizeCardData(card));
-  if (window.GameController) {
-    window.GameController.saveSavedDecks(decks);
-  } else {
-    localStorage.setItem('dm_decks', JSON.stringify(decks));
-  }
-  showMobileToast('デッキを保存しました', 'ok');
-}
-
-async function saveMobileDeckToCloud() {
   const account = AuthService.getCurrentAccount();
   if (!account || account.isGuest || !account.pin) {
-    showMobileToast('クラウド保存にはPINログインが必要です', 'warn');
+    showMobileToast('保存にはPINログインが必要です', 'warn');
     return;
   }
 
@@ -1267,13 +1476,22 @@ async function saveMobileDeckToCloud() {
     return;
   }
 
+  const decks = getSavedDecksMobile();
+  decks[deckName] = deckData;
+  if (window.GameController) {
+    window.GameController.saveSavedDecks(decks);
+  } else {
+    localStorage.setItem('dm_decks', JSON.stringify(decks));
+  }
+
   const names = await NetworkService.loadServerDecks(account.username, account.pin);
   if (window.AppState) {
     window.AppState.set('_serverDeckNames', names);
   } else {
     window._serverDeckNames = names;
   }
-  showMobileToast('クラウドに保存しました', 'ok');
+  showMobileToast('保存しました', 'ok');
+  renderMobileDeckList();
 }
 
 /**
