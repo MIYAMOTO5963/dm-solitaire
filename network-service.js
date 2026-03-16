@@ -13,6 +13,29 @@ const NetworkService = {
     return new Promise((resolve) => setTimeout(resolve, ms));
   },
 
+  _toHalfWidthAscii(text) {
+    return String(text || '').replace(/[！-～]/g, (ch) =>
+      String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)
+    ).replace(/　/g, ' ');
+  },
+
+  normalizeRoomCode(roomCode) {
+    const upper = this._toHalfWidthAscii(roomCode).toUpperCase();
+    const tokenMatch = upper.match(/(?:^|[^A-Z0-9])([A-Z0-9]{6})(?=$|[^A-Z0-9])/);
+    if (tokenMatch && tokenMatch[1]) return tokenMatch[1];
+    return upper.replace(/[^A-Z0-9]/g, '').slice(0, 6);
+  },
+
+  async _readJsonSafe(res) {
+    const text = await res.text();
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      return {};
+    }
+  },
+
   _searchCacheKey(q, page) {
     return `${String(q || '').trim()}::${Number(page) || 1}`;
   },
@@ -351,16 +374,21 @@ const NetworkService = {
    * @returns {Promise<{room: string, p: string}|{error: string}>}
    */
   async createRoom(name) {
-    const base = this.getApiBase();
-    const res = await fetch(`${base}/room/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: (name || 'Player 1').slice(0, 20) }),
-      signal: this._abortSignal(10000)
-    });
-    const data = await res.json();
-    if (!res.ok) return { error: data.error || 'ルーム作成に失敗しました' };
-    return data;
+    try {
+      const base = this.getApiBase();
+      const res = await fetch(`${base}/room/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: (name || 'Player 1').slice(0, 20) }),
+        signal: this._abortSignal(10000)
+      });
+      const data = await this._readJsonSafe(res);
+      if (!res.ok) return { error: data.error || 'ルーム作成に失敗しました' };
+      return data;
+    } catch (error) {
+      console.error('createRoom通信エラー:', error);
+      return { error: 'サーバーに接続できませんでした' };
+    }
   },
 
   /**
@@ -370,16 +398,50 @@ const NetworkService = {
    * @returns {Promise<{ok: boolean, p: string, p1_name: string}|{error: string}>}
    */
   async joinRoom(roomCode, name) {
+    const normalizedRoom = this.normalizeRoomCode(roomCode);
+    if (!normalizedRoom || normalizedRoom.length !== 6) {
+      return { error: 'ルームコードは6文字で入力してください' };
+    }
+
     const base = this.getApiBase();
-    const res = await fetch(`${base}/room/join`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ room: String(roomCode).trim().toUpperCase().slice(0, 6), name: (name || 'Player 2').slice(0, 20) }),
-      signal: this._abortSignal(10000)
-    });
-    const data = await res.json();
-    if (!res.ok) return { error: data.error || '参加に失敗しました' };
-    return data;
+    let lastError = null;
+    const maxRetries = 2;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const res = await fetch(`${base}/room/join`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room: normalizedRoom, name: (name || 'Player 2').slice(0, 20) }),
+          signal: this._abortSignal(10000)
+        });
+        const data = await this._readJsonSafe(res);
+
+        if (res.ok) return data;
+
+        const rawError = String(data.error || '').trim().toLowerCase();
+        const serverError = rawError === 'room not found'
+          ? 'ルームが見つかりません。コードを確認して再入力してください。'
+          : (data.error || '参加に失敗しました');
+        if (res.status === 404 && attempt < maxRetries) {
+          // Room create/join calls can land on different instances in some deployments.
+          // Retry briefly to increase the chance of reaching the room owner instance.
+          await this._wait(300 * (attempt + 1));
+          continue;
+        }
+
+        return { error: serverError };
+      } catch (error) {
+        lastError = error;
+        if (attempt < maxRetries) {
+          await this._wait(300 * (attempt + 1));
+          continue;
+        }
+      }
+    }
+
+    console.error('joinRoom通信エラー:', lastError);
+    return { error: 'サーバーに接続できませんでした' };
   },
 
   /**

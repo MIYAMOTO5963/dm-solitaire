@@ -115,6 +115,24 @@ def _make_room(rid: str) -> dict:
     }
 
 
+def _normalize_room_code(raw: str) -> str:
+    """Normalize room code input and extract a 6-char token when possible."""
+    text = str(raw or '')
+
+    # fullwidth ASCII -> halfwidth
+    text = ''.join(
+        chr(ord(ch) - 0xFEE0) if 0xFF01 <= ord(ch) <= 0xFF5E else (' ' if ord(ch) == 0x3000 else ch)
+        for ch in text
+    )
+    text = text.upper()
+
+    m = re.search(r'(?:^|[^A-Z0-9])([A-Z0-9]{6})(?=$|[^A-Z0-9])', text)
+    if m:
+        return m.group(1)
+
+    return re.sub(r'[^A-Z0-9]', '', text)[:6]
+
+
 def _push_event(room: dict, p: str, event: str, data: dict):
     """Push an SSE event to a player's queue."""
     room[p]['q'].put_nowait({'event': event, 'data': data})
@@ -1050,7 +1068,9 @@ class Handler(BaseHTTPRequestHandler):
 
         # POST /room/join  { room, name }
         elif parsed.path == "/room/join":
-            rid = data.get("room", "").strip().upper()
+            rid = _normalize_room_code(data.get("room", ""))
+            if len(rid) != 6:
+                return self._json({"error": "room code must be 6 chars"}, 400)
             with _rooms_lock:
                 room = _rooms.get(rid)
             if not room:
@@ -1065,7 +1085,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # POST /action  { room, p, type, ...state }
         elif parsed.path == "/action":
-            rid   = data.get("room", "")
+            rid   = _normalize_room_code(data.get("room", ""))
             p     = data.get("p", "")
             atype = data.get("type", "state")
             with _rooms_lock:
@@ -1085,7 +1105,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # POST /chat  { room, p, message }
         elif parsed.path == "/chat":
-            rid = data.get("room", "")
+            rid = _normalize_room_code(data.get("room", ""))
             p = data.get("p", "")
             msg = data.get("message", "").strip()[:200]
             with _rooms_lock:
@@ -1344,7 +1364,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # /events?room=XXXX&p=p1  (SSE stream)
         elif parsed.path == "/events":
-            rid    = p("room", "").strip().upper()
+            rid    = _normalize_room_code(p("room", ""))
             player = p("p", "")
             with _rooms_lock:
                 room = _rooms.get(rid)

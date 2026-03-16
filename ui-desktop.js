@@ -12,6 +12,9 @@ let _desktopSearchDebounceTimer = null;
 let _desktopSearchController = null;
 let _desktopDelegatedEventsBound = false;
 let _desktopDeckHydrateToken = 0;
+let _desktopSearchHydrateToken = 0;
+const _desktopSearchHydrateInFlight = new Set();
+const _desktopSearchHydrateNoImage = new Set();
 let _desktopSearchState = {
   query: '',
   page: 0,
@@ -276,6 +279,65 @@ function renderDesktopSearchResults() {
     : '';
 
   container.innerHTML = `${itemsHtml}${moreHtml}`;
+}
+
+function getDesktopSearchHydrateKey(card) {
+  const raw = String(card?.sourceId || card?.id || '').trim();
+  if (!raw) return '';
+  const normalized = raw.startsWith('src:') ? raw.slice(4) : raw;
+  if (!normalized || normalized.includes('|')) return '';
+  return normalized;
+}
+
+async function hydrateDesktopSearchImages() {
+  const token = ++_desktopSearchHydrateToken;
+  const baseItems = Array.isArray(_desktopSearchState.items) ? _desktopSearchState.items : [];
+  if (!baseItems.length) return;
+
+  const resolved = await Promise.all(baseItems.map(async (card, idx) => {
+    if (getDesktopCardImageUrl(card)) return null;
+
+    const key = getDesktopSearchHydrateKey(card);
+    if (!key) return null;
+    if (_desktopSearchHydrateNoImage.has(key)) return null;
+    if (_desktopSearchHydrateInFlight.has(key)) return null;
+
+    _desktopSearchHydrateInFlight.add(key);
+    try {
+      const enriched = await NetworkService.enrichCardImage(card);
+      const normalized = NetworkService.normalizeCardData(enriched);
+      if (!getDesktopCardImageUrl(normalized)) {
+        _desktopSearchHydrateNoImage.add(key);
+        return null;
+      }
+      return { idx, card: normalized };
+    } catch {
+      return null;
+    } finally {
+      _desktopSearchHydrateInFlight.delete(key);
+    }
+  }));
+
+  if (token !== _desktopSearchHydrateToken) return;
+
+  let changed = false;
+  const next = [...(_desktopSearchState.items || [])];
+  for (const hit of resolved) {
+    if (!hit) continue;
+    if (!next[hit.idx]) continue;
+    if (getDesktopCardImageUrl(next[hit.idx])) continue;
+
+    next[hit.idx] = NetworkService.normalizeCardData({
+      ...next[hit.idx],
+      ...hit.card
+    });
+    changed = true;
+  }
+
+  if (!changed) return;
+
+  _desktopSearchState.items = next;
+  renderDesktopSearchResults();
 }
 
 async function desktopSearchMore() {
@@ -680,6 +742,7 @@ async function desktopSearchCards(q, append = false) {
     const keyword = String(q || '').trim();
     if (!keyword) {
       _desktopSearchState = { query: '', page: 0, items: [], hasMore: false, loading: false };
+      _desktopSearchHydrateToken += 1;
       const resultsEl = document.getElementById('desktop-search-results');
       if (resultsEl) resultsEl.innerHTML = '';
       return;
@@ -706,6 +769,7 @@ async function desktopSearchCards(q, append = false) {
     }
 
     renderDesktopSearchResults();
+    hydrateDesktopSearchImages();
     return;
   }
 
@@ -721,12 +785,14 @@ async function desktopSearchCards(q, append = false) {
     : await _desktopSearchController.search(q);
 
   if (!_desktopSearchState.query) {
+    _desktopSearchHydrateToken += 1;
     const resultsEl = document.getElementById('desktop-search-results');
     if (resultsEl) resultsEl.innerHTML = '';
     return;
   }
 
   renderDesktopSearchResults();
+  hydrateDesktopSearchImages();
 }
 
 /**
@@ -1639,10 +1705,13 @@ function desktopOnlineGetSelected() {
   const nameInput = document.getElementById('desktop-online-player-name');
   const deckSelect = document.getElementById('desktop-online-deck-select');
   const codeInput = document.getElementById('desktop-online-room-code');
+  const normalizedRoomCode = (window.NetworkService && typeof window.NetworkService.normalizeRoomCode === 'function')
+    ? window.NetworkService.normalizeRoomCode(codeInput?.value || '')
+    : (codeInput?.value || '').trim().toUpperCase().slice(0, 6);
   return {
     playerName: (nameInput?.value || 'Player').trim().slice(0, 20),
     deckName: (deckSelect?.value || '').trim(),
-    roomCode: (codeInput?.value || '').trim().toUpperCase().slice(0, 6)
+    roomCode: normalizedRoomCode
   };
 }
 
@@ -1877,6 +1946,10 @@ async function desktopOnlineCreateRoom() {
 
 async function desktopOnlineJoinRoom() {
   const { playerName, deckName, roomCode } = desktopOnlineGetSelected();
+  const roomInput = document.getElementById('desktop-online-room-code');
+  if (roomInput && roomCode && roomInput.value !== roomCode) {
+    roomInput.value = roomCode;
+  }
 
   if (window._ol && window._ol.p === 'p1' && window._ol.room && !window._ol.p2Name) {
     desktopOnlineUpdateStatus('待機中のルームがあります。キャンセルしてから参加してください。');

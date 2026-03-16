@@ -13,6 +13,9 @@ let _mobileSearchDebounceTimer = null;
 let _mobileSearchController = null;
 let _mobileDelegatedEventsBound = false;
 let _mobileDeckHydrateToken = 0;
+let _mobileSearchHydrateToken = 0;
+const _mobileSearchHydrateInFlight = new Set();
+const _mobileSearchHydrateNoImage = new Set();
 let _mobileSearchState = { query: '', page: 0, items: [], hasMore: false, loading: false };
 
 function escapeHtmlMobile(str) {
@@ -604,6 +607,7 @@ async function mobileSearchCards(q) {
 
     if (!keyword) {
       _mobileSearchState = { query: '', page: 0, items: [], hasMore: false, loading: false };
+      _mobileSearchHydrateToken += 1;
       container.innerHTML = '';
       return;
     }
@@ -626,6 +630,7 @@ async function mobileSearchCards(q) {
     }
 
     renderMobileSearchResults();
+    hydrateMobileSearchImages();
     return;
   }
 
@@ -642,11 +647,13 @@ async function mobileSearchCards(q) {
   _mobileSearchState = await _mobileSearchController.search(q);
 
   if (!_mobileSearchState.query) {
+    _mobileSearchHydrateToken += 1;
     container.innerHTML = '';
     return;
   }
 
   renderMobileSearchResults();
+  hydrateMobileSearchImages();
 }
 
 async function mobileSearchMore() {
@@ -664,6 +671,7 @@ async function mobileSearchMore() {
       _mobileSearchState.loading = false;
     }
     renderMobileSearchResults();
+    hydrateMobileSearchImages();
     return;
   }
 
@@ -671,6 +679,66 @@ async function mobileSearchMore() {
 
   _mobileSearchState = await _mobileSearchController.searchMore();
 
+  renderMobileSearchResults();
+  hydrateMobileSearchImages();
+}
+
+function getMobileSearchHydrateKey(card) {
+  const raw = String(card?.sourceId || card?.id || '').trim();
+  if (!raw) return '';
+  const normalized = raw.startsWith('src:') ? raw.slice(4) : raw;
+  if (!normalized || normalized.includes('|')) return '';
+  return normalized;
+}
+
+async function hydrateMobileSearchImages() {
+  const token = ++_mobileSearchHydrateToken;
+  const baseItems = Array.isArray(_mobileSearchState.items) ? _mobileSearchState.items : [];
+  if (!baseItems.length) return;
+
+  const resolved = await Promise.all(baseItems.map(async (card, idx) => {
+    if (getMobileCardImageUrl(card)) return null;
+
+    const key = getMobileSearchHydrateKey(card);
+    if (!key) return null;
+    if (_mobileSearchHydrateNoImage.has(key)) return null;
+    if (_mobileSearchHydrateInFlight.has(key)) return null;
+
+    _mobileSearchHydrateInFlight.add(key);
+    try {
+      const enriched = await NetworkService.enrichCardImage(card);
+      const normalized = NetworkService.normalizeCardData(enriched);
+      if (!getMobileCardImageUrl(normalized)) {
+        _mobileSearchHydrateNoImage.add(key);
+        return null;
+      }
+      return { idx, card: normalized };
+    } catch {
+      return null;
+    } finally {
+      _mobileSearchHydrateInFlight.delete(key);
+    }
+  }));
+
+  if (token !== _mobileSearchHydrateToken) return;
+
+  let changed = false;
+  const next = [...(_mobileSearchState.items || [])];
+  for (const hit of resolved) {
+    if (!hit) continue;
+    if (!next[hit.idx]) continue;
+    if (getMobileCardImageUrl(next[hit.idx])) continue;
+
+    next[hit.idx] = NetworkService.normalizeCardData({
+      ...next[hit.idx],
+      ...hit.card
+    });
+    changed = true;
+  }
+
+  if (!changed) return;
+
+  _mobileSearchState.items = next;
   renderMobileSearchResults();
 }
 
@@ -1701,7 +1769,13 @@ function olCancelMobileWait() {
 
 async function olJoinRoomMobile() {
   const deckName = window._olDeckName;
-  const code = (document.getElementById('mobile-ol-room-code').value || '').trim().toUpperCase().slice(0, 6);
+  const roomCodeInput = document.getElementById('mobile-ol-room-code');
+  const code = (window.NetworkService && typeof window.NetworkService.normalizeRoomCode === 'function')
+    ? window.NetworkService.normalizeRoomCode(roomCodeInput?.value || '')
+    : (roomCodeInput?.value || '').trim().toUpperCase().slice(0, 6);
+  if (roomCodeInput && code && roomCodeInput.value !== code) {
+    roomCodeInput.value = code;
+  }
   if (!code || code.length !== 6) {
     showMobileToast('ルームコードは6文字で入力してください', 'warn');
     return;
