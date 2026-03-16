@@ -5,8 +5,12 @@
 
 let engine = null;
 let _desktopTurnNoticeTimer = null;
+let _desktopToastTimer = null;
 let _desktopSelectedShieldIdx = null;
 let _desktopNeedDrawGuide = false;
+let _desktopSearchDebounceTimer = null;
+let _desktopSearchController = null;
+let _desktopDelegatedEventsBound = false;
 let _desktopSearchState = {
   query: '',
   page: 0,
@@ -14,6 +18,158 @@ let _desktopSearchState = {
   hasMore: false,
   loading: false
 };
+
+function showDesktopToast(message, type = 'info', timeout = 2200) {
+  let el = document.getElementById('desktop-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'desktop-toast';
+    el.className = 'dg-toast';
+    document.body.appendChild(el);
+  }
+
+  el.className = `dg-toast ${type}`;
+  el.textContent = String(message || '');
+  el.style.opacity = '1';
+
+  if (_desktopToastTimer) clearTimeout(_desktopToastTimer);
+  _desktopToastTimer = setTimeout(() => {
+    const current = document.getElementById('desktop-toast');
+    if (current) current.style.opacity = '0';
+  }, timeout);
+}
+
+function askDesktopConfirm(message, confirmLabel = 'OK', cancelLabel = 'キャンセル') {
+  return new Promise((resolve) => {
+    let modal = document.getElementById('desktop-confirm-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'desktop-confirm-modal';
+      modal.className = 'dm-confirm-modal';
+      modal.innerHTML = `
+        <div class="dm-confirm-backdrop"></div>
+        <div class="dm-confirm-body">
+          <div id="desktop-confirm-message" class="dm-confirm-message"></div>
+          <div class="dm-confirm-actions">
+            <button id="desktop-confirm-ok" class="dm-confirm-btn ok">OK</button>
+            <button id="desktop-confirm-cancel" class="dm-confirm-btn cancel">キャンセル</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    const msg = document.getElementById('desktop-confirm-message');
+    const okBtn = document.getElementById('desktop-confirm-ok');
+    const cancelBtn = document.getElementById('desktop-confirm-cancel');
+    const backdrop = modal.querySelector('.dm-confirm-backdrop');
+
+    if (!msg || !okBtn || !cancelBtn || !backdrop) {
+      resolve(false);
+      return;
+    }
+
+    msg.textContent = String(message || '確認してください。');
+    okBtn.textContent = confirmLabel;
+    cancelBtn.textContent = cancelLabel;
+
+    const close = (result) => {
+      modal.classList.remove('open');
+      okBtn.onclick = null;
+      cancelBtn.onclick = null;
+      backdrop.onclick = null;
+      resolve(result);
+    };
+
+    okBtn.onclick = () => close(true);
+    cancelBtn.onclick = () => close(false);
+    backdrop.onclick = () => close(false);
+
+    modal.classList.add('open');
+  });
+}
+
+function onDesktopSearchInput(query) {
+  if (_desktopSearchDebounceTimer) clearTimeout(_desktopSearchDebounceTimer);
+  _desktopSearchDebounceTimer = setTimeout(() => {
+    desktopSearchCards(query);
+  }, 280);
+}
+
+function decodeDesktopData(raw) {
+  if (!raw) return '';
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function bindDesktopDelegatedEvents() {
+  if (_desktopDelegatedEventsBound) return;
+
+  const root = document.getElementById('app-desktop');
+  if (!root) return;
+
+  root.addEventListener('click', (event) => {
+    const target = event.target.closest('[data-dg-action]');
+    if (!target || !root.contains(target)) return;
+
+    const action = target.getAttribute('data-dg-action');
+    const encodedDeck = target.getAttribute('data-deck');
+    const deckName = decodeDesktopData(encodedDeck);
+
+    if (action === 'open-deck') {
+      openDesktopDeck(deckName);
+      return;
+    }
+    if (action === 'start-game') {
+      startDesktopGame(deckName);
+      return;
+    }
+    if (action === 'open-online') {
+      openDesktopOnlineWithDeck(deckName);
+      return;
+    }
+    if (action === 'delete-deck') {
+      deleteDesktopDeck(deckName);
+      return;
+    }
+    if (action === 'add-card') {
+      addToDesktopDeck(decodeDesktopData(target.getAttribute('data-card-json')));
+      return;
+    }
+    if (action === 'inc-card') {
+      incrementDesktopCardCount(Number(target.getAttribute('data-idx')));
+      return;
+    }
+    if (action === 'dec-card') {
+      decrementDesktopCardCount(Number(target.getAttribute('data-idx')));
+      return;
+    }
+    if (action === 'remove-card') {
+      removeDesktopCard(Number(target.getAttribute('data-idx')));
+    }
+  });
+
+  _desktopDelegatedEventsBound = true;
+}
+
+function getDesktopDeckCivs(cards) {
+  if (!Array.isArray(cards)) return [];
+  const set = new Set();
+  cards.forEach((card) => {
+    const civ = getDesktopCardCivClass(card);
+    if (civ) set.add(civ);
+  });
+  return Array.from(set);
+}
+
+function renderDesktopDeckCivDots(cards) {
+  const civs = getDesktopDeckCivs(cards);
+  if (!civs.length) return '<span class="dl-civ-dot none">-</span>';
+  return civs.map(civ => `<span class="dl-civ-dot ${escapeHtml(civ)}"></span>`).join('');
+}
 
 function getDeckCardTotal(cards) {
   return Array.isArray(cards)
@@ -51,6 +207,7 @@ function renderDesktopSearchResults() {
     const cost = Number.isFinite(Number(card.cost)) ? Number(card.cost) : '-';
     const power = card.power ? String(card.power) : '-';
     const civLabel = getCivLabel(civClass);
+    const payload = encodeURIComponent(JSON.stringify(card));
     const thumb = card.thumb ? `<img src="${escapeHtml(card.thumb)}" alt="${escapeHtml(card.name)}" class="dl-search-thumb">` : '<div class="dl-search-thumb placeholder">NO IMG</div>';
 
     return `
@@ -67,7 +224,7 @@ function renderDesktopSearchResults() {
             <div class="dl-search-text">${escapeHtml(card.text || '')}</div>
           </div>
         </div>
-        <button onclick="addToDesktopDeck('${escapeAttrJs(JSON.stringify(card))}')" class="dl-add-btn">+追加</button>
+        <button type="button" data-dg-action="add-card" data-card-json="${payload}" class="dl-add-btn">+追加</button>
       </div>
     `;
   }).join('');
@@ -198,6 +355,9 @@ function onDesktopChatKeyDown(event) {
 
 /** localStorage dm_decks を安全に取得（破損時は {}） */
 function getSavedDecks() {
+  if (window.GameController) {
+    return window.GameController.getSavedDecks();
+  }
   try {
     const raw = localStorage.getItem('dm_decks');
     return raw ? JSON.parse(raw) : {};
@@ -212,7 +372,14 @@ function getSavedDecks() {
  */
 function initDesktopUI() {
   engine = new GameEngine();
+  if (window.GameController) {
+    _desktopSearchController = window.GameController.createSearchController({
+      searchFn: (keyword, page) => NetworkService.searchCards(keyword, page),
+      pageSize: 20
+    });
+  }
   renderDesktopDeckList();
+  bindDesktopDelegatedEvents();
 }
 
 /**
@@ -231,7 +398,7 @@ function renderDesktopDeckList() {
         <h3 class="dl-heading">カード検索</h3>
         <input type="text" id="desktop-search-input" placeholder="カード名..." 
           class="dl-input"
-          onkeyup="desktopSearchCards(this.value)">
+          onkeyup="onDesktopSearchInput(this.value)">
         <div id="desktop-search-results" class="dl-stack dl-stack-tight"></div>
       </div>
       
@@ -280,16 +447,19 @@ function updateDesktopDeckList() {
   // ローカルデッキ
   for (const [name, cards] of Object.entries(savedDecks)) {
     const count = getDeckCardTotal(cards);
+    const civDots = renderDesktopDeckCivDots(cards);
+    const encodedName = encodeURIComponent(name);
     const el = document.createElement('div');
     el.className = 'dl-deck-item';
     el.innerHTML = `
       <div class="dl-deck-name">${escapeHtml(name)}</div>
       <div class="dl-deck-meta">デッキ: ${count}枚</div>
+      <div class="dl-civ-dots" title="文明構成">${civDots}</div>
       <div class="dl-item-actions">
-        <button onclick="openDesktopDeck('${escapeAttrJs(name)}')" class="dl-item-btn edit">編集</button>
-        <button onclick="startDesktopGame('${escapeAttrJs(name)}')" class="dl-item-btn play">一人回し</button>
-        <button onclick="openDesktopOnlineWithDeck('${escapeAttrJs(name)}')" class="dl-item-btn online">オンライン</button>
-        <button onclick="deleteDesktopDeck('${escapeAttrJs(name)}')" class="dl-item-btn delete">削除</button>
+        <button type="button" data-dg-action="open-deck" data-deck="${encodedName}" class="dl-item-btn edit">編集</button>
+        <button type="button" data-dg-action="start-game" data-deck="${encodedName}" class="dl-item-btn play">一人回し</button>
+        <button type="button" data-dg-action="open-online" data-deck="${encodedName}" class="dl-item-btn online">オンライン</button>
+        <button type="button" data-dg-action="delete-deck" data-deck="${encodedName}" class="dl-item-btn delete">削除</button>
       </div>
     `;
     deckList.appendChild(el);
@@ -298,17 +468,22 @@ function updateDesktopDeckList() {
   // サーバーデッキ
   if (account && !account.isGuest && account.pin && window._serverDeckNames) {
     for (const name of window._serverDeckNames) {
+      const encodedName = encodeURIComponent(name);
       const el = document.createElement('div');
       el.className = 'dl-deck-item cloud';
       el.innerHTML = `
         <div class="dl-deck-name">クラウド: ${escapeHtml(name)}</div>
         <div class="dl-item-actions dl-item-actions-cloud">
-          <button onclick="startDesktopGame('${escapeAttrJs(name)}')" class="dl-item-btn play">一人回し</button>
-          <button onclick="openDesktopOnlineWithDeck('${escapeAttrJs(name)}')" class="dl-item-btn online">オンライン</button>
+          <button type="button" data-dg-action="start-game" data-deck="${encodedName}" class="dl-item-btn play">一人回し</button>
+          <button type="button" data-dg-action="open-online" data-deck="${encodedName}" class="dl-item-btn online">オンライン</button>
         </div>
       `;
       deckList.appendChild(el);
     }
+  }
+
+  if (!deckList.children.length) {
+    deckList.innerHTML = '<div class="dl-empty-decks">デッキがありません。まずは新規デッキを作成してください。</div>';
   }
 }
 
@@ -316,33 +491,54 @@ function updateDesktopDeckList() {
  * カード検索（PC版）
  */
 async function desktopSearchCards(q, append = false) {
-  const keyword = String(q || '').trim();
-  if (!keyword) {
-    _desktopSearchState = { query: '', page: 0, items: [], hasMore: false, loading: false };
-    document.getElementById('desktop-search-results').innerHTML = '';
+  if (!window.GameController) {
+    const keyword = String(q || '').trim();
+    if (!keyword) {
+      _desktopSearchState = { query: '', page: 0, items: [], hasMore: false, loading: false };
+      const resultsEl = document.getElementById('desktop-search-results');
+      if (resultsEl) resultsEl.innerHTML = '';
+      return;
+    }
+
+    if (!append && keyword !== _desktopSearchState.query) {
+      _desktopSearchState = { query: keyword, page: 0, items: [], hasMore: false, loading: false };
+    }
+    if (_desktopSearchState.loading) return;
+
+    _desktopSearchState.loading = true;
+    const nextPage = append ? _desktopSearchState.page + 1 : 1;
+    try {
+      const results = await NetworkService.searchCards(keyword, nextPage);
+      const pageItems = Array.isArray(results) ? results.slice(0, 20) : [];
+      _desktopSearchState.query = keyword;
+      _desktopSearchState.page = nextPage;
+      _desktopSearchState.items = append
+        ? [..._desktopSearchState.items, ...pageItems]
+        : pageItems;
+      _desktopSearchState.hasMore = pageItems.length >= 20;
+    } finally {
+      _desktopSearchState.loading = false;
+    }
+
+    renderDesktopSearchResults();
     return;
   }
 
-  if (!append && keyword !== _desktopSearchState.query) {
-    _desktopSearchState = { query: keyword, page: 0, items: [], hasMore: false, loading: false };
+  if (!_desktopSearchController) {
+    _desktopSearchController = window.GameController.createSearchController({
+      searchFn: (keyword, page) => NetworkService.searchCards(keyword, page),
+      pageSize: 20
+    });
   }
 
-  if (_desktopSearchState.loading) return;
+  _desktopSearchState = append
+    ? await _desktopSearchController.searchMore()
+    : await _desktopSearchController.search(q);
 
-  _desktopSearchState.loading = true;
-  const nextPage = append ? _desktopSearchState.page + 1 : 1;
-  try {
-    const results = await NetworkService.searchCards(keyword, nextPage);
-    const pageItems = Array.isArray(results) ? results.slice(0, 20) : [];
-
-    _desktopSearchState.query = keyword;
-    _desktopSearchState.page = nextPage;
-    _desktopSearchState.items = append
-      ? [..._desktopSearchState.items, ...pageItems]
-      : pageItems;
-    _desktopSearchState.hasMore = pageItems.length >= 20;
-  } finally {
-    _desktopSearchState.loading = false;
+  if (!_desktopSearchState.query) {
+    const resultsEl = document.getElementById('desktop-search-results');
+    if (resultsEl) resultsEl.innerHTML = '';
+    return;
   }
 
   renderDesktopSearchResults();
@@ -352,32 +548,34 @@ async function desktopSearchCards(q, append = false) {
  * ゲーム開始（PC版）
  */
 async function startDesktopGame(deckName) {
-  const savedDecks = getSavedDecks();
-  let deckData = null;
-  
-  // ローカルから探す
-  if (savedDecks[deckName]) {
-    deckData = savedDecks[deckName];
-  } 
-  // サーバーから取得
-  else {
-    const account = AuthService.getCurrentAccount();
-    if (account && !account.isGuest && account.pin) {
+  const account = AuthService.getCurrentAccount();
+  let deckData = window.GameController
+    ? await window.GameController.resolveDeckData(deckName, account)
+    : null;
+
+  if (!deckData) {
+    const savedDecks = getSavedDecks();
+    if (savedDecks[deckName]) {
+      deckData = savedDecks[deckName];
+    } else if (account && !account.isGuest && account.pin) {
       deckData = await NetworkService.fetchServerDeck(account.username, account.pin, deckName);
     }
   }
   
   if (!deckData || !deckData.length) {
-    alert('デッキが取得できませんでした。ネットワークまたはデッキ名を確認してください。');
+    showDesktopToast('デッキが取得できませんでした', 'warn');
     return;
   }
   
-  // ゲームエンジン初期化
-  engine.initGame(deckData);
-  window._ol = null;
-  window._olOpponent = null;
+  if (window.GameController) {
+    window.GameController.initSoloGame(engine, deckData);
+  } else {
+    engine.initGame(deckData);
+    window._ol = null;
+    window._olOpponent = null;
+  }
   _desktopSelectedShieldIdx = null;
-  _desktopNeedDrawGuide = false;
+  _desktopNeedDrawGuide = true;
   renderDesktopGame();
 }
 
@@ -394,6 +592,7 @@ function renderDesktopGame() {
   const opp = window._olOpponent || {};
   const myNum = ol ? (ol.p === 'p1' ? 1 : 2) : 1;
   const isMyTurn = ol && window._olCurrentPlayer && window._olCurrentPlayer === myNum;
+  const headerTurnClass = ol ? (isMyTurn ? 'mine-turn' : 'opponent-turn') : 'solo-turn';
   const myName = ol ? (ol.p === 'p1' ? (ol.p1Name || 'Player 1') : (ol.p2Name || 'Player 2')) : '自分';
   const oppName = ol ? (ol.p === 'p1' ? (ol.p2Name || 'Player 2') : (ol.p1Name || 'Player 1')) : '相手';
   const shieldBreakLabel = _desktopSelectedShieldIdx === null
@@ -423,7 +622,7 @@ function renderDesktopGame() {
 
   container.innerHTML = `
     <div class="dg-full-root">
-      <div class="dg-full-header">
+      <div class="dg-full-header ${headerTurnClass}">
         <div class="dg-full-head-meta">
           <div class="dg-full-turn">ターン ${state.turn}</div>
           ${ol ? `<div class="dg-full-state ${isMyTurn ? 'mine' : 'opponent'}">${isMyTurn ? 'あなたのターン' : '相手のターン'}</div>` : ''}
@@ -478,7 +677,7 @@ function renderDesktopGame() {
           <div class="dg-section">
             <strong class="dg-zone-title">手札 (${state.hand.length})</strong>
             <div id="desktop-hand-zone" class="dg-hand-zone">
-              ${state.hand.map((c, i) => {
+              ${state.hand.length ? state.hand.map((c, i) => {
                 const civ = getDesktopCardCivClass(c);
                 const cost = Number.isFinite(Number(c?.cost)) ? Number(c.cost) : '-';
                 const power = c?.power ? String(c.power) : '';
@@ -495,7 +694,7 @@ function renderDesktopGame() {
                     <div class="dg-card-power">${escapeHtml(power)}</div>
                   </div>
                 `;
-              }).join('')}
+              }).join('') : '<div class="dg-zone-empty">カードなし</div>'}
             </div>
             <div id="desktop-card-preview" class="dg-preview">
               <div id="desktop-preview-content"></div>
@@ -505,36 +704,37 @@ function renderDesktopGame() {
           <div class="dg-section">
             <strong class="dg-zone-title">バトル (${state.battleZone.length})</strong>
             <div id="desktop-battle-zone" ondrop="dropDesktopCard(event, 'battle')" ondragover="dragDesktopOver(event)" class="dg-play-zone battle">
-              ${state.battleZone.map((c, i) => renderChip(c, 'battle', i)).join('')}
+              ${state.battleZone.length ? state.battleZone.map((c, i) => renderChip(c, 'battle', i)).join('') : '<div class="dg-zone-empty">カードなし</div>'}
             </div>
           </div>
 
           <div class="dg-section">
             <strong class="dg-zone-title">マナ (${state.manaZone.length})</strong>
             <div id="desktop-mana-zone" ondrop="dropDesktopCard(event, 'mana')" ondragover="dragDesktopOver(event)" class="dg-play-zone mana">
-              ${state.manaZone.map((c, i) => renderChip(c, 'mana', i)).join('')}
+              ${state.manaZone.length ? state.manaZone.map((c, i) => renderChip(c, 'mana', i)).join('') : '<div class="dg-zone-empty">カードなし</div>'}
             </div>
           </div>
 
           <div class="dg-section">
             <strong class="dg-zone-title">シールド (${state.shields.length})</strong>
             <div class="dg-shield-zone">
-              ${state.shields.map((c, i) => `
+              ${state.shields.length ? state.shields.map((c, i) => `
                 <div class="dg-card-chip shield ${_desktopSelectedShieldIdx === i ? 'selected' : ''}"
                   onclick="selectDesktopShield(${i})"
                   title="${escapeHtml(c.name || 'シールド')}">
                   SH
                 </div>
-              `).join('')}
+              `).join('') : '<div class="dg-zone-empty">カードなし</div>'}
             </div>
           </div>
 
           <div class="dg-section">
             <strong class="dg-zone-title">墓地 (${state.graveyard.length})</strong>
-            <div class="dg-grave-zone">
-              ${state.graveyard.slice(-10).map(c => renderChip(c, 'grave')).join('')}
+            <div class="dg-grave-zone clickable" onclick="openDesktopGraveyardModal()">
+              ${state.graveyard.length ? state.graveyard.slice(-10).map(c => renderChip(c, 'grave')).join('') : '<div class="dg-zone-empty">カードなし</div>'}
               ${state.graveyard.length > 10 ? `<div class="dg-more-chip">+${state.graveyard.length - 10}</div>` : ''}
             </div>
+            <div class="dg-zone-hint">クリックで墓地一覧</div>
           </div>
         </div>
 
@@ -557,11 +757,14 @@ function renderDesktopGame() {
 
 function tapDesktopCard(zone, idx) {
   if (window._ol && !canActDesktopOnline()) {
-    alert('相手のターンです');
+    showDesktopToast('相手のターンです', 'warn');
     return;
   }
 
-  if (!engine.tapCard(zone, idx)) return;
+  const ok = window.GameController
+    ? window.GameController.tapCard(engine, zone, idx)
+    : engine.tapCard(zone, idx);
+  if (!ok) return;
   if (window._ol) olSendActionDesktop('state');
   renderDesktopGame();
 }
@@ -573,13 +776,15 @@ function selectDesktopShield(idx) {
 
 function breakDesktopShield() {
   if (window._ol && !canActDesktopOnline()) {
-    alert('相手のターンです');
+    showDesktopToast('相手のターンです', 'warn');
     return;
   }
 
-  const broken = engine.breakShield(_desktopSelectedShieldIdx);
-  if (!broken) {
-    alert('シールドがありません');
+  const result = window.GameController
+    ? window.GameController.breakShield(engine, _desktopSelectedShieldIdx)
+    : { ok: !!engine.breakShield(_desktopSelectedShieldIdx) };
+  if (!result.ok) {
+    showDesktopToast('シールドがありません', 'warn');
     return;
   }
 
@@ -589,6 +794,9 @@ function breakDesktopShield() {
 }
 
 function canActDesktopOnline() {
+  if (window.GameController) {
+    return window.GameController.canActOnline(window._ol, window._olCurrentPlayer);
+  }
   if (!window._ol) return true;
   if (!window._olCurrentPlayer) return false;
   const me = window._ol.p === 'p1' ? 1 : 2;
@@ -597,11 +805,14 @@ function canActDesktopOnline() {
 
 function playDesktopCard(idx, zone) {
   if (window._ol && !canActDesktopOnline()) {
-    alert('相手のターンです');
+    showDesktopToast('相手のターンです', 'warn');
     return;
   }
 
-  engine.playCard(engine.state.hand[idx], zone);
+  const ok = window.GameController
+    ? window.GameController.playCardByHandIndex(engine, idx, zone)
+    : engine.playCard(engine.state.hand[idx], zone);
+  if (!ok) return;
   if (window._ol) olSendActionDesktop('state');
   renderDesktopGame();
 }
@@ -671,13 +882,14 @@ function dropDesktopCard(event, zone) {
   if (_currentDragIdx === null) return;
   if (window._ol && !canActDesktopOnline()) {
     _currentDragIdx = null;
-    alert('相手のターンです');
+    showDesktopToast('相手のターンです', 'warn');
     return;
   }
   
-  const card = engine.state.hand[_currentDragIdx];
-  if (card) {
-    engine.playCard(card, zone);
+  const ok = window.GameController
+    ? window.GameController.playCardByHandIndex(engine, _currentDragIdx, zone)
+    : engine.playCard(engine.state.hand[_currentDragIdx], zone);
+  if (ok) {
     if (window._ol) olSendActionDesktop('state');
     renderDesktopGame();
   }
@@ -687,11 +899,14 @@ function dropDesktopCard(event, zone) {
 
 function drawDesktopCard() {
   if (window._ol && !canActDesktopOnline()) {
-    alert('相手のターンです');
+    showDesktopToast('相手のターンです', 'warn');
     return;
   }
 
-  if (!engine.drawCard()) return;
+  const ok = window.GameController
+    ? window.GameController.drawCard(engine)
+    : engine.drawCard();
+  if (!ok) return;
   _desktopNeedDrawGuide = false;
   if (window._ol) olSendActionDesktop('state');
   renderDesktopGame();
@@ -699,45 +914,110 @@ function drawDesktopCard() {
 
 function turnDesktopEnd() {
   if (window._ol && !canActDesktopOnline()) {
-    alert('相手のターンです');
+    showDesktopToast('相手のターンです', 'warn');
     return;
   }
 
-  engine.turnEnd();
-  _desktopNeedDrawGuide = false;
+  const ok = window.GameController
+    ? window.GameController.turnEnd(engine, window._ol)
+    : (engine.turnEnd(), true);
+  if (!ok) return;
+  _desktopNeedDrawGuide = !window._ol;
   _desktopSelectedShieldIdx = null;
   if (window._ol) {
-    window._olCurrentPlayer = window._ol.p === 'p1' ? 2 : 1;
     olSendActionDesktop('turn_end');
+  } else {
+    showDesktopTurnNotification('次のターンです。まずはドロー');
   }
   renderDesktopGame();
 }
 
 function moveDesktopToGraveyard(fromZone) {
   if (window._ol && !canActDesktopOnline()) {
-    alert('相手のターンです');
+    showDesktopToast('相手のターンです', 'warn');
     return;
   }
 
-  if (!engine.moveToGraveyard(-1, fromZone)) return;
+  const ok = window.GameController
+    ? window.GameController.moveToGraveyard(engine, fromZone)
+    : engine.moveToGraveyard(-1, fromZone);
+  if (!ok) return;
   if (window._ol) olSendActionDesktop('state');
   renderDesktopGame();
 }
 
 function returnDesktopFromGraveyard(toZone) {
   if (window._ol && !canActDesktopOnline()) {
-    alert('相手のターンです');
+    showDesktopToast('相手のターンです', 'warn');
     return;
   }
 
-  if (!engine.returnFromGraveyard(-1, toZone || 'hand')) return;
+  const ok = window.GameController
+    ? window.GameController.returnFromGraveyard(engine, toZone || 'hand')
+    : engine.returnFromGraveyard(-1, toZone || 'hand');
+  if (!ok) return;
   if (window._ol) olSendActionDesktop('state');
   renderDesktopGame();
 }
 
 function undoDesktopGame() {
   if (window._ol) return;
-  if (engine.undo()) renderDesktopGame();
+  const ok = window.GameController
+    ? window.GameController.undo(engine)
+    : engine.undo();
+  if (ok) renderDesktopGame();
+}
+
+function openDesktopGraveyardModal() {
+  const state = engine?.getState?.();
+  const grave = Array.isArray(state?.graveyard) ? state.graveyard : [];
+  if (!grave.length) {
+    showDesktopToast('墓地にカードがありません', 'warn');
+    return;
+  }
+
+  let modal = document.getElementById('desktop-graveyard-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'desktop-graveyard-modal';
+    modal.className = 'dm-grave-modal';
+    modal.innerHTML = `
+      <div class="dm-grave-backdrop" onclick="closeDesktopGraveyardModal()"></div>
+      <div class="dm-grave-body">
+        <div class="dm-grave-head">
+          <div class="dm-grave-title">墓地一覧</div>
+          <button class="dm-grave-close" onclick="closeDesktopGraveyardModal()">閉じる</button>
+        </div>
+        <div id="desktop-graveyard-list" class="dm-grave-list"></div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  const list = document.getElementById('desktop-graveyard-list');
+  if (list) {
+    list.innerHTML = grave.slice().reverse().map((card, i) => {
+      const civ = getDesktopCardCivClass(card);
+      const cost = Number.isFinite(Number(card?.cost)) ? Number(card.cost) : '-';
+      const power = card?.power ? String(card.power) : '-';
+      return `
+        <div class="dm-grave-item ${civ}">
+          <div class="dm-grave-item-no">${i + 1}</div>
+          <div class="dm-grave-item-main">
+            <div class="dm-grave-item-name">${escapeHtml(card?.name || 'カード')}</div>
+            <div class="dm-grave-item-meta">コスト ${escapeHtml(String(cost))} / パワー ${escapeHtml(String(power))}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  modal.classList.add('open');
+}
+
+function closeDesktopGraveyardModal() {
+  const modal = document.getElementById('desktop-graveyard-modal');
+  if (modal) modal.classList.remove('open');
 }
 
 function newDesktopDeck() {
@@ -746,21 +1026,31 @@ function newDesktopDeck() {
   
   const decks = getSavedDecks();
   if (decks[name]) {
-    alert('このデッキは既に存在します');
+    showDesktopToast('このデッキは既に存在します', 'warn');
     return;
   }
   
   decks[name] = [];
-  localStorage.setItem('dm_decks', JSON.stringify(decks));
+  if (window.GameController) {
+    window.GameController.saveSavedDecks(decks);
+  } else {
+    localStorage.setItem('dm_decks', JSON.stringify(decks));
+  }
   updateDesktopDeckList();
 }
 
-function deleteDesktopDeck(name) {
-  if (!confirm('削除してよろしいですか？')) return;
+async function deleteDesktopDeck(name) {
+  const ok = await askDesktopConfirm('削除してよろしいですか？', '削除', 'キャンセル');
+  if (!ok) return;
   
   const decks = getSavedDecks();
   delete decks[name];
-  localStorage.setItem('dm_decks', JSON.stringify(decks));
+  if (window.GameController) {
+    window.GameController.saveSavedDecks(decks);
+  } else {
+    localStorage.setItem('dm_decks', JSON.stringify(decks));
+  }
+  showDesktopToast('デッキを削除しました', 'ok');
   updateDesktopDeckList();
 }
 
@@ -769,8 +1059,11 @@ function deleteDesktopDeck(name) {
  */
 function renderDesktopDeckEdit() {
   const container = document.getElementById('app-desktop');
-  const deckName = window._deckEditing;
-  const cards = window._deckCards;
+  const editingState = window.GameController
+    ? window.GameController.getDeckEditingState()
+    : { deckName: window._deckEditing, cards: window._deckCards };
+  const deckName = editingState.deckName;
+  const cards = editingState.cards;
   const account = AuthService.getCurrentAccount();
   const canCloudSave = !!(account && !account.isGuest && account.pin);
   
@@ -793,7 +1086,7 @@ function renderDesktopDeckEdit() {
         <h3 class="dl-heading">カード検索</h3>
         <input type="text" id="desktop-search-input" placeholder="カード名..." 
           class="dl-input"
-          onkeyup="desktopSearchCards(this.value)">
+          onkeyup="onDesktopSearchInput(this.value)">
         <div id="desktop-search-results" class="dl-stack dl-stack-tight"></div>
       </div>
       
@@ -815,10 +1108,10 @@ function renderDesktopDeckEdit() {
                 <div class="dl-edit-card-text">${escapeHtml(c.text || '')}</div>
               </div>
               <div class="dl-count-controls">
-                <button onclick="decrementDesktopCardCount(${i})" class="dl-count-btn minus">−</button>
+                <button type="button" data-dg-action="dec-card" data-idx="${i}" class="dl-count-btn minus">−</button>
                 <span class="dl-count-num">${c.count || 1}</span>
-                <button onclick="incrementDesktopCardCount(${i})" class="dl-count-btn plus">+</button>
-                <button onclick="removeDesktopCard(${i})" class="dl-count-btn delete">削除</button>
+                <button type="button" data-dg-action="inc-card" data-idx="${i}" class="dl-count-btn plus">+</button>
+                <button type="button" data-dg-action="remove-card" data-idx="${i}" class="dl-count-btn delete">削除</button>
               </div>
             </div>
           `).join('')}
@@ -854,8 +1147,13 @@ function renderDesktopDeckEdit() {
  */
 function openDesktopDeck(name) {
   const savedDecks = getSavedDecks();
-  window._deckEditing = name;
-  window._deckCards = savedDecks[name] ? JSON.parse(JSON.stringify(savedDecks[name])) : [];
+  const cards = savedDecks[name] ? savedDecks[name] : [];
+  if (window.GameController) {
+    window.GameController.setDeckEditingState(name, cards);
+  } else {
+    window._deckEditing = name;
+    window._deckCards = JSON.parse(JSON.stringify(cards));
+  }
   renderDesktopDeckEdit();
 }
 
@@ -863,10 +1161,15 @@ function openDesktopDeck(name) {
  * カード枚数増加
  */
 function incrementDesktopCardCount(idx) {
-  const card = window._deckCards[idx];
-  if (!card) return;
-  card.count = (card.count || 1) + 1;
-  if (card.count > 4) card.count = 4;
+  if (window.GameController) {
+    const next = window.GameController.changeDeckCardCount(window._deckCards, idx, 1, 1, 4);
+    window._deckCards = next;
+  } else {
+    const card = window._deckCards[idx];
+    if (!card) return;
+    card.count = (card.count || 1) + 1;
+    if (card.count > 4) card.count = 4;
+  }
   renderDesktopDeckEdit();
 }
 
@@ -874,11 +1177,16 @@ function incrementDesktopCardCount(idx) {
  * カード枚数減少
  */
 function decrementDesktopCardCount(idx) {
-  const card = window._deckCards[idx];
-  if (!card) return;
-  card.count = (card.count || 1) - 1;
-  if (card.count < 1) {
-    window._deckCards.splice(idx, 1);
+  if (window.GameController) {
+    const next = window.GameController.changeDeckCardCount(window._deckCards, idx, -1, 1, 4);
+    window._deckCards = next;
+  } else {
+    const card = window._deckCards[idx];
+    if (!card) return;
+    card.count = (card.count || 1) - 1;
+    if (card.count < 1) {
+      window._deckCards.splice(idx, 1);
+    }
   }
   renderDesktopDeckEdit();
 }
@@ -887,7 +1195,11 @@ function decrementDesktopCardCount(idx) {
  * カード削除
  */
 function removeDesktopCard(idx) {
-  window._deckCards.splice(idx, 1);
+  if (window.GameController) {
+    window._deckCards = window.GameController.removeDeckCard(window._deckCards, idx);
+  } else {
+    window._deckCards.splice(idx, 1);
+  }
   renderDesktopDeckEdit();
 }
 
@@ -897,14 +1209,17 @@ function removeDesktopCard(idx) {
 function addToDesktopDeck(cardJson) {
   try {
     const card = JSON.parse(cardJson);
-    
-    // 既に存在するカードなら枚数+1
-    const existing = window._deckCards.find(c => c.id === card.id);
-    if (existing) {
-      existing.count = (existing.count || 1) + 1;
-      if (existing.count > 4) existing.count = 4;
+
+    if (window.GameController) {
+      window._deckCards = window.GameController.addCardToDeck(window._deckCards, card, 4);
     } else {
-      window._deckCards.push({ ...card, count: 1 });
+      const existing = window._deckCards.find(c => c.id === card.id);
+      if (existing) {
+        existing.count = (existing.count || 1) + 1;
+        if (existing.count > 4) existing.count = 4;
+      } else {
+        window._deckCards.push({ ...card, count: 1 });
+      }
     }
     
     renderDesktopDeckEdit();
@@ -916,27 +1231,33 @@ function addToDesktopDeck(cardJson) {
 /**
  * デッキ保存
  */
-function saveDesktopDeck() {
-  const total = getDeckCardTotal(window._deckCards);
+async function saveDesktopDeck() {
+  const total = window.GameController
+    ? window.GameController.countDeckCards(window._deckCards)
+    : getDeckCardTotal(window._deckCards);
   if (total === 0) {
-    alert('カードが入っていません');
+    showDesktopToast('カードが入っていません', 'warn');
     return;
   }
   if (total > 40) {
-    const ok = confirm(`デッキが${total}枚です（推奨40枚）。このまま保存しますか？`);
+    const ok = await askDesktopConfirm(`デッキが${total}枚です（推奨40枚）。このまま保存しますか？`, '保存する', '戻る');
     if (!ok) return;
   }
 
   const decks = getSavedDecks();
   decks[window._deckEditing] = window._deckCards;
-  localStorage.setItem('dm_decks', JSON.stringify(decks));
-  alert('デッキを保存しました');
+  if (window.GameController) {
+    window.GameController.saveSavedDecks(decks);
+  } else {
+    localStorage.setItem('dm_decks', JSON.stringify(decks));
+  }
+  showDesktopToast('デッキを保存しました', 'ok');
 }
 
 async function saveDesktopDeckToCloud() {
   const account = AuthService.getCurrentAccount();
   if (!account || account.isGuest || !account.pin) {
-    alert('クラウド保存にはログインが必要です。');
+    showDesktopToast('クラウド保存にはPINログインが必要です', 'warn');
     return;
   }
 
@@ -946,12 +1267,17 @@ async function saveDesktopDeckToCloud() {
 
   const result = await NetworkService.saveDeck(account.username, account.pin, deckName, deckData);
   if (result.error) {
-    alert(result.error);
+    showDesktopToast(result.error, 'warn');
     return;
   }
 
-  window._serverDeckNames = await NetworkService.loadServerDecks(account.username, account.pin);
-  alert('クラウドに保存しました。');
+  const names = await NetworkService.loadServerDecks(account.username, account.pin);
+  if (window.AppState) {
+    window.AppState.set('_serverDeckNames', names);
+  } else {
+    window._serverDeckNames = names;
+  }
+  showDesktopToast('クラウドに保存しました', 'ok');
 }
 
 /**
@@ -959,11 +1285,16 @@ async function saveDesktopDeckToCloud() {
  */
 function playDesktopDeckGame() {
   if (!window._deckCards.length) {
-    alert('デッキが空です');
+    showDesktopToast('デッキが空です', 'warn');
     return;
   }
   
-  engine.initGame(window._deckCards);
+  if (window.GameController) {
+    window.GameController.initSoloGame(engine, window._deckCards);
+  } else {
+    engine.initGame(window._deckCards);
+  }
+  _desktopNeedDrawGuide = true;
   renderDesktopGame();
 }
 
@@ -1008,8 +1339,12 @@ function desktopOnlineBackToDeckList() {
   }
 
   if (window._ol && !window._olOpponent) {
-    window._ol = null;
-    window._olDeckData = null;
+    if (window.GameController) {
+      window.GameController.clearOnlineSession();
+    } else {
+      window._ol = null;
+      window._olDeckData = null;
+    }
   }
 
   renderDesktopDeckList();
@@ -1127,10 +1462,14 @@ function desktopOnlineCancelWaiting() {
     _olReconnectTimerDesktop = null;
   }
 
-  window._ol = null;
-  window._olDeckData = null;
-  window._olOpponent = null;
-  window._olCurrentPlayer = null;
+  if (window.GameController) {
+    window.GameController.clearOnlineSession();
+  } else {
+    window._ol = null;
+    window._olDeckData = null;
+    window._olOpponent = null;
+    window._olCurrentPlayer = null;
+  }
 
   desktopOnlineSetWaitingUi(false);
   desktopOnlineUpdateRoomId();
@@ -1481,10 +1820,18 @@ function renderDesktopOnlineLobby() {
 }
 
 async function getDesktopDeckDataForOnline(deckName) {
-  const savedDecks = getSavedDecks();
-  if (savedDecks[deckName]) return Array.isArray(savedDecks[deckName]) ? savedDecks[deckName] : null;
   const account = AuthService.getCurrentAccount();
-  if (account && !account.isGuest && account.pin) return await NetworkService.fetchServerDeck(account.username, account.pin, deckName);
+  if (window.GameController) {
+    return await window.GameController.resolveDeckData(deckName, account);
+  }
+
+  const savedDecks = getSavedDecks();
+  if (savedDecks[deckName]) {
+    return Array.isArray(savedDecks[deckName]) ? savedDecks[deckName] : null;
+  }
+  if (account && !account.isGuest && account.pin) {
+    return await NetworkService.fetchServerDeck(account.username, account.pin, deckName);
+  }
   return null;
 }
 
@@ -1502,11 +1849,15 @@ function startDesktopOnlineGame() {
     window._ol.eventSource = null;
   }
 
-  window._olOpponent = { hand: 5, battleZone: 0, manaZone: 0, shields: 5, deck: 30, graveyard: 0 };
-  window._olCurrentPlayer = window._ol.p === 'p1' ? 1 : 2;
-  window._olChatLogDesktop = [];
+  if (window.GameController) {
+    window.GameController.startOnlineMatch(window._ol.p);
+  } else {
+    window._olOpponent = { hand: 5, battleZone: 0, manaZone: 0, shields: 5, deck: 30, graveyard: 0 };
+    window._olCurrentPlayer = window._ol.p === 'p1' ? 1 : 2;
+    window._olChatLogDesktop = [];
+  }
   _desktopSelectedShieldIdx = null;
-  _desktopNeedDrawGuide = false;
+  _desktopNeedDrawGuide = true;
   appendDesktopChatMessage('SYSTEM', 'オンライン対戦を開始しました。', 'sys');
 
   engine.initGame(deckData);
@@ -1599,16 +1950,25 @@ function olStartEventListenerDesktop() {
         }
       }, delay);
     } else {
-      alert('接続が切れました。ロビーに戻ります。');
-      window._ol = null;
-      window._olOpponent = null;
-      window._olCurrentPlayer = null;
+      showDesktopToast('接続が切れました。ロビーに戻ります', 'warn');
+      if (window.GameController) {
+        window.GameController.clearOnlineSession();
+      } else {
+        window._ol = null;
+        window._olOpponent = null;
+        window._olCurrentPlayer = null;
+      }
       renderDesktopDeckList();
     }
   };
 }
 
 function olSendActionDesktop(actionType) {
+  if (window.GameController) {
+    window.GameController.sendOnlineAction(engine, actionType);
+    return;
+  }
+
   if (!window._ol || !engine) return;
   const s = engine.state;
   const payload = {

@@ -9,6 +9,9 @@ let _mobileChatOpen = false;
 let _mobileSelectedShieldIdx = null;
 let _mobileNeedDrawGuide = false;
 let _mobileSelectedHandIdx = null;
+let _mobileSearchDebounceTimer = null;
+let _mobileSearchController = null;
+let _mobileDelegatedEventsBound = false;
 let _mobileSearchState = { query: '', page: 0, items: [], hasMore: false, loading: false };
 
 function escapeHtmlMobile(str) {
@@ -48,6 +51,138 @@ function getMobileCardCivClass(card) {
 function getMobileCardShortName(name, max = 8) {
   const s = String(name || '');
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
+function getMobileDeckCivs(cards) {
+  if (!Array.isArray(cards)) return [];
+  const set = new Set();
+  cards.forEach((card) => {
+    const civ = getMobileCardCivClass(card);
+    if (civ) set.add(civ);
+  });
+  return Array.from(set);
+}
+
+function renderMobileDeckCivDots(cards) {
+  const civs = getMobileDeckCivs(cards);
+  if (!civs.length) return '<span class="ml-civ-dot none">-</span>';
+  return civs.map(civ => `<span class="ml-civ-dot ${escapeHtmlMobile(civ)}"></span>`).join('');
+}
+
+function onMobileSearchInput(query) {
+  if (_mobileSearchDebounceTimer) clearTimeout(_mobileSearchDebounceTimer);
+  _mobileSearchDebounceTimer = setTimeout(() => {
+    mobileSearchCards(query);
+  }, 280);
+}
+
+function decodeMobileData(raw) {
+  if (!raw) return '';
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function bindMobileDelegatedEvents() {
+  if (_mobileDelegatedEventsBound) return;
+
+  const root = document.getElementById('app-mobile');
+  if (!root) return;
+
+  root.addEventListener('click', (event) => {
+    const target = event.target.closest('[data-mg-action]');
+    if (!target || !root.contains(target)) return;
+
+    const action = target.getAttribute('data-mg-action');
+    const encodedDeck = target.getAttribute('data-deck');
+    const deckName = decodeMobileData(encodedDeck);
+
+    if (action === 'open-deck') {
+      openMobileDeck(deckName);
+      return;
+    }
+    if (action === 'start-game') {
+      startMobileGame(deckName);
+      return;
+    }
+    if (action === 'open-online') {
+      showMobileOnlineModal(deckName);
+      return;
+    }
+    if (action === 'delete-deck') {
+      deleteMobileDeck(deckName);
+      return;
+    }
+    if (action === 'add-card') {
+      addToMobileDeck(decodeMobileData(target.getAttribute('data-card-json')));
+      return;
+    }
+    if (action === 'inc-card') {
+      incrementMobileCardCount(Number(target.getAttribute('data-idx')));
+      return;
+    }
+    if (action === 'dec-card') {
+      decrementMobileCardCount(Number(target.getAttribute('data-idx')));
+      return;
+    }
+    if (action === 'remove-card') {
+      removeMobileCard(Number(target.getAttribute('data-idx')));
+    }
+  });
+
+  _mobileDelegatedEventsBound = true;
+}
+
+function askMobileConfirm(message, confirmLabel = 'OK', cancelLabel = 'キャンセル') {
+  return new Promise((resolve) => {
+    let modal = document.getElementById('mobile-confirm-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'mobile-confirm-modal';
+      modal.className = 'dm-confirm-modal';
+      modal.innerHTML = `
+        <div class="dm-confirm-backdrop"></div>
+        <div class="dm-confirm-body mobile">
+          <div id="mobile-confirm-message" class="dm-confirm-message"></div>
+          <div class="dm-confirm-actions">
+            <button id="mobile-confirm-ok" class="dm-confirm-btn ok">OK</button>
+            <button id="mobile-confirm-cancel" class="dm-confirm-btn cancel">キャンセル</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    const msg = document.getElementById('mobile-confirm-message');
+    const okBtn = document.getElementById('mobile-confirm-ok');
+    const cancelBtn = document.getElementById('mobile-confirm-cancel');
+    const backdrop = modal.querySelector('.dm-confirm-backdrop');
+
+    if (!msg || !okBtn || !cancelBtn || !backdrop) {
+      resolve(false);
+      return;
+    }
+
+    msg.textContent = String(message || '確認してください。');
+    okBtn.textContent = confirmLabel;
+    cancelBtn.textContent = cancelLabel;
+
+    const close = (result) => {
+      modal.classList.remove('open');
+      okBtn.onclick = null;
+      cancelBtn.onclick = null;
+      backdrop.onclick = null;
+      resolve(result);
+    };
+
+    okBtn.onclick = () => close(true);
+    cancelBtn.onclick = () => close(false);
+    backdrop.onclick = () => close(false);
+
+    modal.classList.add('open');
+  });
 }
 
 function showMobileToast(message, type = 'info', timeout = 2200) {
@@ -174,6 +309,9 @@ function onMobileChatKeyDown(event) {
 }
 
 function canActMobileOnline() {
+  if (window.GameController) {
+    return window.GameController.canActOnline(window._ol, window._olCurrentPlayer);
+  }
   if (!window._ol) return true;
   if (!window._olCurrentPlayer) return false;
   const myNum = window._ol.p === 'p1' ? 1 : 2;
@@ -182,6 +320,9 @@ function canActMobileOnline() {
 
 /** localStorage dm_decks を安全に取得（破損時は {}） */
 function getSavedDecksMobile() {
+  if (window.GameController) {
+    return window.GameController.getSavedDecks();
+  }
   try {
     const raw = localStorage.getItem('dm_decks');
     return raw ? JSON.parse(raw) : {};
@@ -196,7 +337,14 @@ function getSavedDecksMobile() {
  */
 function initMobileUI() {
   engineMobile = new GameEngine();
+  if (window.GameController) {
+    _mobileSearchController = window.GameController.createSearchController({
+      searchFn: (keyword, page) => NetworkService.searchCards(keyword, page),
+      pageSize: 20
+    });
+  }
   renderMobileDeckList();
+  bindMobileDelegatedEvents();
 }
 
 /**
@@ -235,7 +383,7 @@ function renderMobileDeckList() {
           <h3 class="ml-heading">カード検索</h3>
           <input type="text" id="mobile-search-input" placeholder="カード名..." 
             class="ml-input"
-            onkeyup="mobileSearchCards(this.value)">
+            onkeyup="onMobileSearchInput(this.value)">
           <div id="mobile-search-results" class="ml-stack ml-stack-tight"></div>
         </div>
         
@@ -259,16 +407,19 @@ function updateMobileDeckList() {
   // ローカルデッキ
   for (const [name, cards] of Object.entries(savedDecks)) {
     const count = countMobileDeckCards(cards);
+    const civDots = renderMobileDeckCivDots(cards);
+    const encodedName = encodeURIComponent(name);
     const el = document.createElement('div');
     el.className = 'ml-deck-item';
     el.innerHTML = `
       <div class="ml-deck-name">${escapeHtmlMobile(name)}</div>
       <div class="ml-deck-meta">デッキ: ${count}枚</div>
+      <div class="ml-civ-dots" title="文明構成">${civDots}</div>
       <div class="ml-item-actions">
-        <button onclick="openMobileDeck('${escapeAttrJsMobile(name)}')" class="ml-item-btn edit">編集</button>
-        <button onclick="startMobileGame('${escapeAttrJsMobile(name)}')" class="ml-item-btn play">一人回し</button>
-        <button onclick="showMobileOnlineModal('${escapeAttrJsMobile(name)}')" class="ml-item-btn online">オンライン</button>
-        <button onclick="deleteMobileDeck('${escapeAttrJsMobile(name)}')" class="ml-item-btn delete">削除</button>
+        <button type="button" data-mg-action="open-deck" data-deck="${encodedName}" class="ml-item-btn edit">編集</button>
+        <button type="button" data-mg-action="start-game" data-deck="${encodedName}" class="ml-item-btn play">一人回し</button>
+        <button type="button" data-mg-action="open-online" data-deck="${encodedName}" class="ml-item-btn online">オンライン</button>
+        <button type="button" data-mg-action="delete-deck" data-deck="${encodedName}" class="ml-item-btn delete">削除</button>
       </div>
     `;
     deckList.appendChild(el);
@@ -277,17 +428,22 @@ function updateMobileDeckList() {
   // サーバーデッキ
   if (account && !account.isGuest && account.pin && window._serverDeckNames) {
     for (const name of window._serverDeckNames) {
+      const encodedName = encodeURIComponent(name);
       const el = document.createElement('div');
       el.className = 'ml-deck-item cloud';
       el.innerHTML = `
         <div class="ml-deck-name">クラウド: ${escapeHtmlMobile(name)}</div>
         <div class="ml-item-actions ml-item-actions-cloud">
-          <button onclick="startMobileGame('${escapeAttrJsMobile(name)}')" class="ml-item-btn play">一人回し</button>
-          <button onclick="showMobileOnlineModal('${escapeAttrJsMobile(name)}')" class="ml-item-btn online">オンライン</button>
+          <button type="button" data-mg-action="start-game" data-deck="${encodedName}" class="ml-item-btn play">一人回し</button>
+          <button type="button" data-mg-action="open-online" data-deck="${encodedName}" class="ml-item-btn online">オンライン</button>
         </div>
       `;
       deckList.appendChild(el);
     }
+  }
+
+  if (!deckList.children.length) {
+    deckList.innerHTML = '<div class="ml-empty-decks">デッキがありません。まずは新規デッキを作成してください。</div>';
   }
 }
 
@@ -295,54 +451,79 @@ function updateMobileDeckList() {
  * カード検索（SP版）
  */
 async function mobileSearchCards(q) {
-  const keyword = (q || '').trim();
-  const container = document.getElementById('mobile-search-results');
-  if (!container) return;
+  if (!window.GameController) {
+    const keyword = (q || '').trim();
+    const container = document.getElementById('mobile-search-results');
+    if (!container) return;
 
-  if (!keyword) {
-    _mobileSearchState = { query: '', page: 0, items: [], hasMore: false, loading: false };
-    container.innerHTML = '';
+    if (!keyword) {
+      _mobileSearchState = { query: '', page: 0, items: [], hasMore: false, loading: false };
+      container.innerHTML = '';
+      return;
+    }
+
+    if (keyword !== _mobileSearchState.query) {
+      _mobileSearchState = { query: keyword, page: 0, items: [], hasMore: false, loading: false };
+    }
+    if (_mobileSearchState.loading) return;
+
+    _mobileSearchState.loading = true;
+    try {
+      const results = await NetworkService.searchCards(keyword, 1);
+      const pageItems = Array.isArray(results) ? results.slice(0, 20) : [];
+      _mobileSearchState.query = keyword;
+      _mobileSearchState.page = 1;
+      _mobileSearchState.items = pageItems;
+      _mobileSearchState.hasMore = pageItems.length >= 20;
+    } finally {
+      _mobileSearchState.loading = false;
+    }
+
+    renderMobileSearchResults();
     return;
   }
 
-  if (keyword !== _mobileSearchState.query) {
-    _mobileSearchState = { query: keyword, page: 0, items: [], hasMore: false, loading: false };
+  if (!_mobileSearchController) {
+    _mobileSearchController = window.GameController.createSearchController({
+      searchFn: (keyword, page) => NetworkService.searchCards(keyword, page),
+      pageSize: 20
+    });
   }
 
-  if (_mobileSearchState.loading) return;
+  const container = document.getElementById('mobile-search-results');
+  if (!container) return;
 
-  _mobileSearchState.loading = true;
-  const nextPage = 1;
-  try {
-    const results = await NetworkService.searchCards(keyword, nextPage);
-    const pageItems = Array.isArray(results) ? results.slice(0, 20) : [];
+  _mobileSearchState = await _mobileSearchController.search(q);
 
-    _mobileSearchState.query = keyword;
-    _mobileSearchState.page = nextPage;
-    _mobileSearchState.items = pageItems;
-    _mobileSearchState.hasMore = pageItems.length >= 20;
-  } finally {
-    _mobileSearchState.loading = false;
+  if (!_mobileSearchState.query) {
+    container.innerHTML = '';
+    return;
   }
 
   renderMobileSearchResults();
 }
 
 async function mobileSearchMore() {
-  if (!_mobileSearchState.query || _mobileSearchState.loading || !_mobileSearchState.hasMore) return;
-
-  _mobileSearchState.loading = true;
-  const nextPage = _mobileSearchState.page + 1;
-  try {
-    const results = await NetworkService.searchCards(_mobileSearchState.query, nextPage);
-    const pageItems = Array.isArray(results) ? results.slice(0, 20) : [];
-
-    _mobileSearchState.page = nextPage;
-    _mobileSearchState.items = [..._mobileSearchState.items, ...pageItems];
-    _mobileSearchState.hasMore = pageItems.length >= 20;
-  } finally {
-    _mobileSearchState.loading = false;
+  if (!window.GameController) {
+    if (!_mobileSearchState.query || _mobileSearchState.loading || !_mobileSearchState.hasMore) return;
+    _mobileSearchState.loading = true;
+    const nextPage = _mobileSearchState.page + 1;
+    try {
+      const results = await NetworkService.searchCards(_mobileSearchState.query, nextPage);
+      const pageItems = Array.isArray(results) ? results.slice(0, 20) : [];
+      _mobileSearchState.page = nextPage;
+      _mobileSearchState.items = [..._mobileSearchState.items, ...pageItems];
+      _mobileSearchState.hasMore = pageItems.length >= 20;
+    } finally {
+      _mobileSearchState.loading = false;
+    }
+    renderMobileSearchResults();
+    return;
   }
+
+  if (!_mobileSearchController || !_mobileSearchState.query || _mobileSearchState.loading || !_mobileSearchState.hasMore) return;
+
+  _mobileSearchState = await _mobileSearchController.searchMore();
 
   renderMobileSearchResults();
 }
@@ -359,7 +540,7 @@ function renderMobileSearchResults() {
 
   const rows = cards.map(card => {
     const civ = getMobileCardCivClass(card);
-    const payload = escapeAttrJsMobile(JSON.stringify(card));
+    const payload = encodeURIComponent(JSON.stringify(card));
     const cost = Number.isFinite(Number(card?.cost)) ? Number(card.cost) : '-';
     const thumb = card.thumb
       ? `<img src="${escapeHtmlMobile(card.thumb)}" alt="${escapeHtmlMobile(card.name)}" class="ml-search-thumb">`
@@ -377,7 +558,7 @@ function renderMobileSearchResults() {
             <div class="ml-search-text">${escapeHtmlMobile(card.text || '')}</div>
           </div>
         </div>
-        <button onclick="addToMobileDeck('${payload}')" class="ml-add-btn">+追加</button>
+        <button type="button" data-mg-action="add-card" data-card-json="${payload}" class="ml-add-btn">+追加</button>
       </div>
     `;
   }).join('');
@@ -393,14 +574,16 @@ function renderMobileSearchResults() {
  * ゲーム開始（SP版）
  */
 async function startMobileGame(deckName) {
-  const savedDecks = getSavedDecksMobile();
-  let deckData = null;
-  
-  if (savedDecks[deckName]) {
-    deckData = savedDecks[deckName];
-  } else {
-    const account = AuthService.getCurrentAccount();
-    if (account && !account.isGuest && account.pin) {
+  const account = AuthService.getCurrentAccount();
+  let deckData = window.GameController
+    ? await window.GameController.resolveDeckData(deckName, account)
+    : null;
+
+  if (!deckData) {
+    const savedDecks = getSavedDecksMobile();
+    if (savedDecks[deckName]) {
+      deckData = savedDecks[deckName];
+    } else if (account && !account.isGuest && account.pin) {
       deckData = await NetworkService.fetchServerDeck(account.username, account.pin, deckName);
     }
   }
@@ -410,12 +593,16 @@ async function startMobileGame(deckName) {
     return;
   }
   
-  window._ol = null;
-  window._olOpponent = null;
+  if (window.GameController) {
+    window.GameController.initSoloGame(engineMobile, deckData);
+  } else {
+    window._ol = null;
+    window._olOpponent = null;
+    engineMobile.initGame(deckData);
+  }
   _mobileSelectedShieldIdx = null;
   _mobileSelectedHandIdx = null;
-  _mobileNeedDrawGuide = false;
-  engineMobile.initGame(deckData);
+  _mobileNeedDrawGuide = true;
   renderMobileGame();
 }
 
@@ -436,6 +623,7 @@ function renderMobileGame() {
   const opp = window._olOpponent || {};
   const myNum = ol ? (ol.p === 'p1' ? 1 : 2) : 1;
   const isMyTurn = ol && window._olCurrentPlayer && window._olCurrentPlayer === myNum;
+  const headerTurnClass = ol ? (isMyTurn ? 'mine-turn' : 'opponent-turn') : 'solo-turn';
   const myName = ol ? (ol.p === 'p1' ? (ol.p1Name || 'Player 1') : (ol.p2Name || 'Player 2')) : '自分';
   const oppName = ol ? (ol.p === 'p1' ? (ol.p2Name || 'Player 2') : (ol.p1Name || 'Player 1')) : '相手';
   const selectedHandCard = _mobileSelectedHandIdx === null ? null : state.hand[_mobileSelectedHandIdx];
@@ -465,7 +653,7 @@ function renderMobileGame() {
     <div class="mg-root">
       
       <!-- ヘッダー -->
-      <div class="mg-header">
+      <div class="mg-header ${headerTurnClass}">
         ターン ${state.turn} | デッキ: ${state.deck.length}
         ${ol ? ` | <span class="mg-turn-state ${isMyTurn ? 'mine' : 'opponent'}">${isMyTurn ? '自分のターン' : '相手のターン'}</span>` : ''}
       </div>
@@ -507,12 +695,24 @@ function renderMobileGame() {
         <div class="mg-me-wrap">
           <div class="mg-me-title">自分エリア: ${escapeHtmlMobile(myName)}</div>
         </div>
+
+        <!-- シールド -->
+        <div class="mg-zone-section shield">
+          <div class="mg-zone-title">シールド (${state.shields.length})</div>
+          <div class="mg-card-grid center">
+            ${state.shields.length ? state.shields.map((s, i) => `
+              <div class="mg-card-chip shield ${_mobileSelectedShieldIdx === i ? 'selected' : ''}" onclick="selectMobileShield(${i})" title="${escapeHtmlMobile(s.name || 'シールド')}">
+                SH
+              </div>
+            `).join('') : '<div class="mg-zone-empty">カードなし</div>'}
+          </div>
+        </div>
         
         <!-- バトルゾーン -->
         <div class="mg-zone-section battle">
           <div class="mg-zone-title">バトルゾーン (${state.battleZone.length})</div>
           <div class="mg-card-grid">
-            ${state.battleZone.map((c, i) => renderChip(c, 'battle', i)).join('')}
+            ${state.battleZone.length ? state.battleZone.map((c, i) => renderChip(c, 'battle', i)).join('') : '<div class="mg-zone-empty">カードなし</div>'}
           </div>
         </div>
 
@@ -520,29 +720,18 @@ function renderMobileGame() {
         <div class="mg-zone-section mana">
           <div class="mg-zone-title">マナゾーン (${state.manaZone.length})</div>
           <div class="mg-card-grid">
-            ${state.manaZone.map((c, i) => renderChip(c, 'mana', i)).join('')}
-          </div>
-        </div>
-        
-        <!-- シールド -->
-        <div class="mg-zone-section shield">
-          <div class="mg-zone-title">シールド (${state.shields.length})</div>
-          <div class="mg-card-grid center">
-            ${state.shields.map((s, i) => `
-              <div class="mg-card-chip shield ${_mobileSelectedShieldIdx === i ? 'selected' : ''}" onclick="selectMobileShield(${i})" title="${escapeHtmlMobile(s.name || 'シールド')}">
-                SH
-              </div>
-            `).join('')}
+            ${state.manaZone.length ? state.manaZone.map((c, i) => renderChip(c, 'mana', i)).join('') : '<div class="mg-zone-empty">カードなし</div>'}
           </div>
         </div>
 
         <!-- 墓地 -->
         <div class="mg-zone-section grave">
           <div class="mg-zone-title">墓地 (${state.graveyard.length})</div>
-          <div class="mg-card-grid">
-            ${state.graveyard.slice(-12).map(c => renderChip(c, 'grave')).join('')}
+          <div class="mg-card-grid clickable" onclick="openMobileGraveyardModal()">
+            ${state.graveyard.length ? state.graveyard.slice(-12).map(c => renderChip(c, 'grave')).join('') : '<div class="mg-zone-empty">カードなし</div>'}
             ${state.graveyard.length > 12 ? `<div class="mg-more-chip">+${state.graveyard.length - 12}</div>` : ''}
           </div>
+          <div class="mg-zone-hint">タップで墓地一覧</div>
         </div>
         
       </div>
@@ -551,7 +740,7 @@ function renderMobileGame() {
       <div class="mg-hand-dock">
         <div class="mg-hand-title">手札 (${state.hand.length})</div>
         <div class="mg-hand-row">
-          ${state.hand.map((c, i) => `
+          ${state.hand.length ? state.hand.map((c, i) => `
             <div class="mg-card-chip hand ${getMobileCardCivClass(c)}"
               onclick="openMobileHandActionSheet(${i})"
               title="${escapeHtmlMobile(c.name)}">
@@ -559,7 +748,7 @@ function renderMobileGame() {
               <div class="mg-card-name">${escapeHtmlMobile(getMobileCardShortName(c.name, 8))}</div>
               <div class="mg-card-power">${escapeHtmlMobile(c?.power ? String(c.power) : '')}</div>
             </div>
-          `).join('')}
+          `).join('') : '<div class="mg-zone-empty">カードなし</div>'}
         </div>
       </div>
 
@@ -623,6 +812,58 @@ function closeMobileHandSheet() {
   renderMobileGame();
 }
 
+function openMobileGraveyardModal() {
+  const state = engineMobile?.getState?.();
+  const grave = Array.isArray(state?.graveyard) ? state.graveyard : [];
+  if (!grave.length) {
+    showMobileToast('墓地にカードがありません', 'warn');
+    return;
+  }
+
+  let modal = document.getElementById('mobile-graveyard-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'mobile-graveyard-modal';
+    modal.className = 'dm-grave-modal';
+    modal.innerHTML = `
+      <div class="dm-grave-backdrop" onclick="closeMobileGraveyardModal()"></div>
+      <div class="dm-grave-body mobile">
+        <div class="dm-grave-head">
+          <div class="dm-grave-title">墓地一覧</div>
+          <button class="dm-grave-close" onclick="closeMobileGraveyardModal()">閉じる</button>
+        </div>
+        <div id="mobile-graveyard-list" class="dm-grave-list"></div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  const list = document.getElementById('mobile-graveyard-list');
+  if (list) {
+    list.innerHTML = grave.slice().reverse().map((card, i) => {
+      const civ = getMobileCardCivClass(card);
+      const cost = Number.isFinite(Number(card?.cost)) ? Number(card.cost) : '-';
+      const power = card?.power ? String(card.power) : '-';
+      return `
+        <div class="dm-grave-item ${civ}">
+          <div class="dm-grave-item-no">${i + 1}</div>
+          <div class="dm-grave-item-main">
+            <div class="dm-grave-item-name">${escapeHtmlMobile(card?.name || 'カード')}</div>
+            <div class="dm-grave-item-meta">コスト ${escapeHtmlMobile(String(cost))} / パワー ${escapeHtmlMobile(String(power))}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  modal.classList.add('open');
+}
+
+function closeMobileGraveyardModal() {
+  const modal = document.getElementById('mobile-graveyard-modal');
+  if (modal) modal.classList.remove('open');
+}
+
 function playMobileSelectedCard(zone) {
   const idx = _mobileSelectedHandIdx;
   if (idx === null) return;
@@ -638,7 +879,10 @@ function playMobileSelectedCard(zone) {
     return;
   }
 
-  engineMobile.playCard(card, zone);
+  const ok = window.GameController
+    ? window.GameController.playCardByHandIndex(engineMobile, idx, zone)
+    : engineMobile.playCard(card, zone);
+  if (!ok) return;
   _mobileSelectedHandIdx = null;
   if (window._ol) olSendActionMobile('state');
   renderMobileGame();
@@ -650,7 +894,10 @@ function tapMobileCard(zone, idx) {
     return;
   }
 
-  if (!engineMobile.tapCard(zone, idx)) return;
+  const ok = window.GameController
+    ? window.GameController.tapCard(engineMobile, zone, idx)
+    : engineMobile.tapCard(zone, idx);
+  if (!ok) return;
   if (window._ol) olSendActionMobile('state');
   renderMobileGame();
 }
@@ -666,8 +913,10 @@ function breakMobileShield() {
     return;
   }
 
-  const broken = engineMobile.breakShield(_mobileSelectedShieldIdx);
-  if (!broken) {
+  const result = window.GameController
+    ? window.GameController.breakShield(engineMobile, _mobileSelectedShieldIdx)
+    : { ok: !!engineMobile.breakShield(_mobileSelectedShieldIdx) };
+  if (!result.ok) {
     showMobileToast('シールドがありません', 'warn');
     return;
   }
@@ -683,7 +932,10 @@ function drawMobileCard() {
     return;
   }
 
-  if (!engineMobile.drawCard()) return;
+  const ok = window.GameController
+    ? window.GameController.drawCard(engineMobile)
+    : engineMobile.drawCard();
+  if (!ok) return;
   _mobileNeedDrawGuide = false;
   if (window._ol) olSendActionMobile('state');
   renderMobileGame();
@@ -695,13 +947,17 @@ function turnMobileEnd() {
     return;
   }
 
-  engineMobile.turnEnd();
-  _mobileNeedDrawGuide = false;
+  const ok = window.GameController
+    ? window.GameController.turnEnd(engineMobile, window._ol)
+    : (engineMobile.turnEnd(), true);
+  if (!ok) return;
+  _mobileNeedDrawGuide = !window._ol;
   _mobileSelectedShieldIdx = null;
   _mobileSelectedHandIdx = null;
   if (window._ol) {
-    window._olCurrentPlayer = window._ol.p === 'p1' ? 2 : 1;
     olSendActionMobile('turn_end');
+  } else {
+    showMobileTurnNotification('次のターンです。まずはドロー');
   }
   renderMobileGame();
 }
@@ -712,7 +968,10 @@ function moveMobileToGraveyard(fromZone) {
     return;
   }
 
-  if (!engineMobile.moveToGraveyard(-1, fromZone)) return;
+  const ok = window.GameController
+    ? window.GameController.moveToGraveyard(engineMobile, fromZone)
+    : engineMobile.moveToGraveyard(-1, fromZone);
+  if (!ok) return;
   if (window._ol) olSendActionMobile('state');
   renderMobileGame();
 }
@@ -723,14 +982,20 @@ function returnMobileFromGraveyard(toZone) {
     return;
   }
 
-  if (!engineMobile.returnFromGraveyard(-1, toZone || 'hand')) return;
+  const ok = window.GameController
+    ? window.GameController.returnFromGraveyard(engineMobile, toZone || 'hand')
+    : engineMobile.returnFromGraveyard(-1, toZone || 'hand');
+  if (!ok) return;
   if (window._ol) olSendActionMobile('state');
   renderMobileGame();
 }
 
 function undoMobileGame() {
   if (window._ol) return;
-  if (engineMobile.undo()) renderMobileGame();
+  const ok = window.GameController
+    ? window.GameController.undo(engineMobile)
+    : engineMobile.undo();
+  if (ok) renderMobileGame();
 }
 
 function newMobileDeck() {
@@ -744,16 +1009,26 @@ function newMobileDeck() {
   }
   
   decks[name] = [];
-  localStorage.setItem('dm_decks', JSON.stringify(decks));
+  if (window.GameController) {
+    window.GameController.saveSavedDecks(decks);
+  } else {
+    localStorage.setItem('dm_decks', JSON.stringify(decks));
+  }
   updateMobileDeckList();
 }
 
-function deleteMobileDeck(name) {
-  if (!confirm('削除してよろしいですか？')) return;
+async function deleteMobileDeck(name) {
+  const ok = await askMobileConfirm('削除してよろしいですか？', '削除', 'キャンセル');
+  if (!ok) return;
   
   const decks = getSavedDecksMobile();
   delete decks[name];
-  localStorage.setItem('dm_decks', JSON.stringify(decks));
+  if (window.GameController) {
+    window.GameController.saveSavedDecks(decks);
+  } else {
+    localStorage.setItem('dm_decks', JSON.stringify(decks));
+  }
+  showMobileToast('デッキを削除しました', 'ok');
   updateMobileDeckList();
 }
 
@@ -762,8 +1037,11 @@ function deleteMobileDeck(name) {
  */
 function renderMobileDeckEdit() {
   const container = document.getElementById('app-mobile');
-  const deckName = window._deckEditing;
-  const cards = window._deckCards;
+  const editingState = window.GameController
+    ? window.GameController.getDeckEditingState()
+    : { deckName: window._deckEditing, cards: window._deckCards };
+  const deckName = editingState.deckName;
+  const cards = editingState.cards;
   const account = AuthService.getCurrentAccount();
   const canCloudSave = !!(account && !account.isGuest && account.pin);
   
@@ -787,7 +1065,7 @@ function renderMobileDeckEdit() {
           <h3 class="ml-heading">カード追加</h3>
           <input type="text" id="mobile-search-input" placeholder="カード名..." 
             class="ml-input"
-            onkeyup="mobileSearchCards(this.value)">
+            onkeyup="onMobileSearchInput(this.value)">
           <div id="mobile-search-results" class="ml-stack ml-stack-tight"></div>
         </div>
         
@@ -801,10 +1079,10 @@ function renderMobileDeckEdit() {
                 <div class="ml-edit-card-row">
                   <span class="ml-edit-card-text">${escapeHtmlMobile(c.text || '')}</span>
                   <div class="ml-count-controls">
-                    <button onclick="decrementMobileCardCount(${i})" class="ml-count-btn minus">−</button>
+                    <button type="button" data-mg-action="dec-card" data-idx="${i}" class="ml-count-btn minus">−</button>
                     <span class="ml-count-num">${c.count || 1}</span>
-                    <button onclick="incrementMobileCardCount(${i})" class="ml-count-btn plus">+</button>
-                    <button onclick="removeMobileCard(${i})" class="ml-count-btn delete">削除</button>
+                    <button type="button" data-mg-action="inc-card" data-idx="${i}" class="ml-count-btn plus">+</button>
+                    <button type="button" data-mg-action="remove-card" data-idx="${i}" class="ml-count-btn delete">削除</button>
                   </div>
                 </div>
               </div>
@@ -830,8 +1108,13 @@ function renderMobileDeckEdit() {
  */
 function openMobileDeck(name) {
   const savedDecks = getSavedDecksMobile();
-  window._deckEditing = name;
-  window._deckCards = savedDecks[name] ? JSON.parse(JSON.stringify(savedDecks[name])) : [];
+  const cards = savedDecks[name] ? savedDecks[name] : [];
+  if (window.GameController) {
+    window.GameController.setDeckEditingState(name, cards);
+  } else {
+    window._deckEditing = name;
+    window._deckCards = JSON.parse(JSON.stringify(cards));
+  }
   renderMobileDeckEdit();
 }
 
@@ -839,10 +1122,14 @@ function openMobileDeck(name) {
  * カード枚数増加（SP版）
  */
 function incrementMobileCardCount(idx) {
-  const card = window._deckCards[idx];
-  if (!card) return;
-  card.count = (card.count || 1) + 1;
-  if (card.count > 4) card.count = 4;
+  if (window.GameController) {
+    window._deckCards = window.GameController.changeDeckCardCount(window._deckCards, idx, 1, 1, 4);
+  } else {
+    const card = window._deckCards[idx];
+    if (!card) return;
+    card.count = (card.count || 1) + 1;
+    if (card.count > 4) card.count = 4;
+  }
   renderMobileDeckEdit();
 }
 
@@ -850,11 +1137,15 @@ function incrementMobileCardCount(idx) {
  * カード枚数減少（SP版）
  */
 function decrementMobileCardCount(idx) {
-  const card = window._deckCards[idx];
-  if (!card) return;
-  card.count = (card.count || 1) - 1;
-  if (card.count < 1) {
-    window._deckCards.splice(idx, 1);
+  if (window.GameController) {
+    window._deckCards = window.GameController.changeDeckCardCount(window._deckCards, idx, -1, 1, 4);
+  } else {
+    const card = window._deckCards[idx];
+    if (!card) return;
+    card.count = (card.count || 1) - 1;
+    if (card.count < 1) {
+      window._deckCards.splice(idx, 1);
+    }
   }
   renderMobileDeckEdit();
 }
@@ -863,7 +1154,11 @@ function decrementMobileCardCount(idx) {
  * カード削除（SP版）
  */
 function removeMobileCard(idx) {
-  window._deckCards.splice(idx, 1);
+  if (window.GameController) {
+    window._deckCards = window.GameController.removeDeckCard(window._deckCards, idx);
+  } else {
+    window._deckCards.splice(idx, 1);
+  }
   renderMobileDeckEdit();
 }
 
@@ -873,13 +1168,17 @@ function removeMobileCard(idx) {
 function addToMobileDeck(cardJson) {
   try {
     const card = JSON.parse(cardJson);
-    
-    const existing = window._deckCards.find(c => c.id === card.id);
-    if (existing) {
-      existing.count = (existing.count || 1) + 1;
-      if (existing.count > 4) existing.count = 4;
+
+    if (window.GameController) {
+      window._deckCards = window.GameController.addCardToDeck(window._deckCards, card, 4);
     } else {
-      window._deckCards.push({ ...card, count: 1 });
+      const existing = window._deckCards.find(c => c.id === card.id);
+      if (existing) {
+        existing.count = (existing.count || 1) + 1;
+        if (existing.count > 4) existing.count = 4;
+      } else {
+        window._deckCards.push({ ...card, count: 1 });
+      }
     }
     
     renderMobileDeckEdit();
@@ -891,19 +1190,26 @@ function addToMobileDeck(cardJson) {
 /**
  * デッキ保存（SP版）
  */
-function saveMobileDeck() {
-  const total = countMobileDeckCards(window._deckCards);
+async function saveMobileDeck() {
+  const total = window.GameController
+    ? window.GameController.countDeckCards(window._deckCards)
+    : countMobileDeckCards(window._deckCards);
   if (total <= 0) {
     showMobileToast('デッキが空です', 'warn');
     return;
   }
-  if (total > 40 && !confirm(`40枚を超えています（現在 ${total} 枚）。保存しますか？`)) {
-    return;
+  if (total > 40) {
+    const ok = await askMobileConfirm(`40枚を超えています（現在 ${total} 枚）。保存しますか？`, '保存する', '戻る');
+    if (!ok) return;
   }
 
   const decks = getSavedDecksMobile();
   decks[window._deckEditing] = window._deckCards;
-  localStorage.setItem('dm_decks', JSON.stringify(decks));
+  if (window.GameController) {
+    window.GameController.saveSavedDecks(decks);
+  } else {
+    localStorage.setItem('dm_decks', JSON.stringify(decks));
+  }
   showMobileToast('デッキを保存しました', 'ok');
 }
 
@@ -924,7 +1230,12 @@ async function saveMobileDeckToCloud() {
     return;
   }
 
-  window._serverDeckNames = await NetworkService.loadServerDecks(account.username, account.pin);
+  const names = await NetworkService.loadServerDecks(account.username, account.pin);
+  if (window.AppState) {
+    window.AppState.set('_serverDeckNames', names);
+  } else {
+    window._serverDeckNames = names;
+  }
   showMobileToast('クラウドに保存しました', 'ok');
 }
 
@@ -937,10 +1248,14 @@ function playMobileDeckGame() {
     return;
   }
   
-  engineMobile.initGame(window._deckCards);
+  if (window.GameController) {
+    window.GameController.initSoloGame(engineMobile, window._deckCards);
+  } else {
+    engineMobile.initGame(window._deckCards);
+  }
   _mobileSelectedShieldIdx = null;
   _mobileSelectedHandIdx = null;
-  _mobileNeedDrawGuide = false;
+  _mobileNeedDrawGuide = true;
   renderMobileGame();
 }
 
@@ -1107,9 +1422,13 @@ function olCancelMobileWait() {
 
   if (window._ol && window._ol.eventSource) window._ol.eventSource.close();
 
-  window._ol = null;
+  if (window.GameController) {
+    window.GameController.clearOnlineSession();
+  } else {
+    window._ol = null;
+    window._olDeckData = null;
+  }
   window._olDeckName = null;
-  window._olDeckData = null;
 
   hideMobileOnlineModal();
 
@@ -1143,10 +1462,18 @@ async function olJoinRoomMobile() {
 }
 
 async function getMobileDeckDataForOnline(deckName) {
-  const savedDecks = getSavedDecksMobile();
-  if (savedDecks[deckName]) return Array.isArray(savedDecks[deckName]) ? savedDecks[deckName] : null;
   const account = AuthService.getCurrentAccount();
-  if (account && !account.isGuest && account.pin) return await NetworkService.fetchServerDeck(account.username, account.pin, deckName);
+  if (window.GameController) {
+    return await window.GameController.resolveDeckData(deckName, account);
+  }
+
+  const savedDecks = getSavedDecksMobile();
+  if (savedDecks[deckName]) {
+    return Array.isArray(savedDecks[deckName]) ? savedDecks[deckName] : null;
+  }
+  if (account && !account.isGuest && account.pin) {
+    return await NetworkService.fetchServerDeck(account.username, account.pin, deckName);
+  }
   return null;
 }
 
@@ -1156,12 +1483,16 @@ function startMobileOnlineGame() {
 
   if (window._ol.eventSource) window._ol.eventSource.close();
 
-  window._olOpponent = { hand: 5, battleZone: 0, manaZone: 0, shields: 5, deck: 30, graveyard: 0 };
-  window._olCurrentPlayer = window._ol.p === 'p1' ? 1 : 2;
-  window._olChatLogMobile = [];
+  if (window.GameController) {
+    window.GameController.startOnlineMatch(window._ol.p);
+  } else {
+    window._olOpponent = { hand: 5, battleZone: 0, manaZone: 0, shields: 5, deck: 30, graveyard: 0 };
+    window._olCurrentPlayer = window._ol.p === 'p1' ? 1 : 2;
+    window._olChatLogMobile = [];
+  }
   _mobileSelectedShieldIdx = null;
   _mobileSelectedHandIdx = null;
-  _mobileNeedDrawGuide = false;
+  _mobileNeedDrawGuide = true;
   _mobileChatOpen = false;
   appendMobileChatMessage('SYSTEM', 'オンライン対戦を開始しました。', 'sys');
 
@@ -1245,17 +1576,25 @@ function olStartEventListenerMobile() {
       setTimeout(olStartEventListenerMobile, Math.pow(2, window._ol.reconnectAttempt) * 1000);
     } else {
       showMobileToast('接続が切れました。ロビーに戻ります', 'warn');
-      window._ol = null;
-      window._olOpponent = null;
-      window._olCurrentPlayer = null;
+      if (window.GameController) {
+        window.GameController.clearOnlineSession();
+      } else {
+        window._ol = null;
+        window._olOpponent = null;
+        window._olCurrentPlayer = null;
+      }
       renderMobileDeckList();
     }
   };
 }
 
 function olSendActionMobile(actionType) {
-  if (!window._ol || !engineMobile) return;
+  if (window.GameController) {
+    window.GameController.sendOnlineAction(engineMobile, actionType);
+    return;
+  }
 
+  if (!window._ol || !engineMobile) return;
   const s = engineMobile.state;
   const payload = {
     room: window._ol.room,

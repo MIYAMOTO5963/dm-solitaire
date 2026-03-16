@@ -2552,6 +2552,421 @@
     .mg-toast.warn { background: #a85f5f; }
     .mg-toast.info { background: #4b647a; }
 
+    /* V3: deck civ dots / empty states */
+    .dl-civ-dots,
+    .ml-civ-dots {
+      display: flex;
+      gap: 4px;
+      margin: 6px 0 8px;
+      align-items: center;
+    }
+
+    .dl-civ-dot,
+    .ml-civ-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,0.15);
+      background: #c4ccd1;
+      display: inline-block;
+    }
+
+    .dl-civ-dot.none,
+    .ml-civ-dot.none {
+      width: auto;
+      height: auto;
+      border-radius: 999px;
+      padding: 0 6px;
+      font-size: 0.7rem;
+      color: #6d7a82;
+      background: #edf1f4;
+      border-color: #d4dce1;
+      line-height: 1.25;
+    }
+
+    .dl-civ-dot.fire, .ml-civ-dot.fire { background: #d16f44; }
+    .dl-civ-dot.water, .ml-civ-dot.water { background: #4f86c5; }
+    .dl-civ-dot.nature, .ml-civ-dot.nature { background: #5b9a5a; }
+    .dl-civ-dot.light, .ml-civ-dot.light { background: #c2ad62; }
+    .dl-civ-dot.dark, .dl-civ-dot.darkness, .ml-civ-dot.dark, .ml-civ-dot.darkness { background: #6c5a7e; }
+    .dl-civ-dot.multi, .dl-civ-dot.neutral, .ml-civ-dot.multi, .ml-civ-dot.neutral { background: #8d969c; }
+
+    .dl-empty-decks,
+    .ml-empty-decks {
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px dashed #d6ded9;
+      background: #f5f8f6;
+      color: #6d7d73;
+      font-size: 0.84rem;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    /* V3: zone accent + empty hint */
+    .dg-zone-title,
+    .mg-zone-title {
+      position: relative;
+      padding-left: 10px;
+    }
+
+    .dg-zone-title::before,
+    .mg-zone-title::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 2px;
+      bottom: 2px;
+      width: 4px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #b37a4c 0%, #8f613a 100%);
+    }
+
+    .dg-zone-empty,
+    .mg-zone-empty {
+      font-size: 0.75rem;
+      color: #6f7f74;
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: #edf1ef;
+      border: 1px dashed #cfd8d2;
+    }
+
+    .dg-zone-hint,
+    .mg-zone-hint {
+      margin-top: 4px;
+      font-size: 0.7rem;
+      color: #7b6a58;
+    }
+
+    .dg-grave-zone.clickable,
+    .mg-card-grid.clickable {
+      cursor: pointer;
+    }
+
+    /* V3: header turn background */
+    .dg-full-header.mine-turn {
+      background: #e4f2eb;
+      border-bottom-color: #9ac8af;
+    }
+
+    .dg-full-header.opponent-turn {
+      background: #f6ece7;
+      border-bottom-color: #d7b9ab;
+    }
+
+    .dg-full-header.solo-turn {
+      background: #f9f4ea;
+      border-bottom-color: #dbc8ae;
+    }
+
+    .mg-header.mine-turn {
+      background: #2f7b56;
+    }
+
+    .mg-header.opponent-turn {
+      background: #7a5f5f;
+    }
+
+    .mg-header.solo-turn {
+      background: #6b8f8a;
+    }
+
+    /* V3: desktop toast + modal helpers */
+    .dg-toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      padding: 10px 14px;
+      border-radius: 999px;
+      color: #fff;
+      font-size: 0.82rem;
+      font-weight: 700;
+      z-index: 2800;
+      opacity: 0;
+      transition: opacity .2s;
+      pointer-events: none;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+      background: #4b647a;
+    }
+
+    .dg-toast.ok { background: #2f7b56; }
+    .dg-toast.warn { background: #a85f5f; }
+    .dg-toast.info { background: #4b647a; }
+
+    .dm-confirm-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 3100;
+      display: none;
+    }
+
+    .dm-confirm-modal.open {
+      display: block;
+    }
+
+    .dm-confirm-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+    }
+
+    .dm-confirm-body {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(440px, calc(100% - 24px));
+      background: #fafbf9;
+      border: 1px solid #dbe1dd;
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.2);
+    }
+
+    .dm-confirm-body.mobile {
+      width: min(420px, calc(100% - 20px));
+    }
+
+    .dm-confirm-message {
+      color: #3d4a44;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      margin-bottom: 12px;
+    }
+
+    .dm-confirm-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .dm-confirm-btn {
+      border: none;
+      border-radius: 8px;
+      padding: 9px 14px;
+      font-weight: 700;
+      cursor: pointer;
+      color: #fff;
+    }
+
+    .dm-confirm-btn.ok { background: #7a9a7a; }
+    .dm-confirm-btn.cancel { background: #8a8a8a; }
+
+    /* V3: graveyard modal viewer */
+    .dm-grave-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 3200;
+      display: none;
+    }
+
+    .dm-grave-modal.open {
+      display: block;
+    }
+
+    .dm-grave-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.38);
+    }
+
+    .dm-grave-body {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(560px, calc(100% - 28px));
+      max-height: calc(100vh - 60px);
+      background: #fafbf9;
+      border: 1px solid #dbe1dd;
+      border-radius: 12px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.2);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .dm-grave-body.mobile {
+      width: calc(100% - 20px);
+      left: 10px;
+      right: 10px;
+      top: auto;
+      bottom: 14px;
+      transform: none;
+      max-height: 70vh;
+    }
+
+    .dm-grave-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid #e1e7e2;
+      background: #f3f6f4;
+    }
+
+    .dm-grave-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #3d4a44;
+    }
+
+    .dm-grave-close {
+      border: none;
+      border-radius: 6px;
+      padding: 7px 10px;
+      background: #8a8a8a;
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .dm-grave-list {
+      padding: 10px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .dm-grave-item {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid #d9e1dc;
+      border-left: 4px solid #9ca6ad;
+      background: #f8fbf9;
+      border-radius: 8px;
+      padding: 7px 9px;
+    }
+
+    .dm-grave-item.fire { border-left-color: #d16f44; }
+    .dm-grave-item.water { border-left-color: #4f86c5; }
+    .dm-grave-item.nature { border-left-color: #5b9a5a; }
+    .dm-grave-item.light { border-left-color: #c2ad62; }
+    .dm-grave-item.dark,
+    .dm-grave-item.darkness { border-left-color: #6c5a7e; }
+    .dm-grave-item.multi,
+    .dm-grave-item.neutral { border-left-color: #8d969c; }
+
+    .dm-grave-item-no {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #e7ece9;
+      color: #52615a;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .dm-grave-item-name {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #33413a;
+      line-height: 1.3;
+      word-break: break-word;
+    }
+
+    .dm-grave-item-meta {
+      font-size: 0.72rem;
+      color: #617069;
+      margin-top: 1px;
+    }
+
+    /* V3: Design-1 warm online lobby theme override */
+    .dol-root {
+      background: radial-gradient(circle at 48% 12%, rgba(211, 171, 126, 0.38) 0%, rgba(248, 241, 229, 0.05) 34%), linear-gradient(118deg, #f4e7d2 0%, #eddcc3 50%, #e6d3be 100%);
+      color: #4f3b2b;
+      font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+    }
+
+    .dol-owner,
+    .dol-center,
+    .dol-guest {
+      background: linear-gradient(180deg, rgba(255,250,242,0.96) 0%, rgba(246,236,222,0.96) 100%);
+      border: 1px solid rgba(184, 149, 108, 0.45);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.45);
+      color: #4f3b2b;
+    }
+
+    .dol-owner .dol-badge-title,
+    .dol-guest .dol-badge-title,
+    .dol-owner .dol-badge-sub,
+    .dol-guest .dol-badge-sub,
+    .dol-label,
+    .dol-room-entry-label,
+    .dol-opponent-label,
+    .dol-note {
+      color: #7a5f45;
+    }
+
+    .dol-profile,
+    .dol-opponent-card,
+    .dol-room-card,
+    .dol-stat-box,
+    .dol-status {
+      background: rgba(255, 250, 240, 0.82);
+      border-color: rgba(177, 139, 96, 0.42);
+      color: #5b4330;
+    }
+
+    .dol-avatar {
+      background: radial-gradient(circle at 30% 30%, #ffe2b7 0%, #b7824f 72%);
+      border-color: rgba(200, 150, 92, 0.65);
+      color: #fff7ea;
+    }
+
+    .dol-input,
+    .dol-select,
+    .dol-room-input {
+      color: #4d3a2a;
+      background: rgba(255,255,255,0.8);
+      border-color: rgba(177, 139, 96, 0.48);
+    }
+
+    .dol-copy-btn,
+    .dol-join-btn,
+    .dol-create-btn {
+      background: linear-gradient(180deg, #b37a4c 0%, #8f613a 100%);
+      box-shadow: 0 4px 12px rgba(121, 83, 49, 0.24);
+      color: #fff;
+    }
+
+    .dol-stage-box {
+      background: linear-gradient(125deg, #c89b6d 0%, #a97648 100%);
+      border-color: rgba(255, 240, 220, 0.58);
+      color: #fff8ed;
+    }
+
+    .dol-stage-shuffle,
+    .dol-ghost-action,
+    .dol-owner-btn.back {
+      background: rgba(255,255,255,0.62);
+      border-color: rgba(173,137,95,0.5);
+      color: #5f452f;
+    }
+
+    .dol-owner-btn.logout,
+    .dol-cancel-btn {
+      background: rgba(167, 124, 124, 0.16);
+      border-color: rgba(167, 124, 124, 0.42);
+      color: #7a4343;
+    }
+
+    .dol-opponent-name,
+    .dol-room-code,
+    .dol-head-title,
+    .dol-stat-value {
+      color: #4c3421;
+    }
+
     @media (max-width: 1280px) {
       .dl-root {
         grid-template-columns: 230px 1fr 280px;
@@ -2650,19 +3065,33 @@
 <script src="game-engine.js"></script>
 <script src="auth-service.js"></script>
 <script src="network-service.js"></script>
+<script src="app-state.js"></script>
+<script src="game-controller.js"></script>
 <script src="ui-desktop.js"></script>
 <script src="ui-mobile.js"></script>
 
 <script>
-  // グローバル状態
-  window._serverDeckNames = [];
-  window._deckEditing = null;        // 編集中のデッキ名
-  window._deckCards = [];            // 編集中のカード配列
+  // グローバル状態（AppStateが正本）
+  if (window.AppState) {
+    window.AppState.patch({
+      _serverDeckNames: [],
+      _deckEditing: null,
+      _deckCards: []
+    });
+  } else {
+    window._serverDeckNames = [];
+    window._deckEditing = null;
+    window._deckCards = [];
+  }
 
   /**
    * デッキグローバル変数初期化
    */
   function resetDeckState() {
+    if (window.AppState) {
+      window.AppState.patch({ _deckEditing: null, _deckCards: [] });
+      return;
+    }
     window._deckEditing = null;
     window._deckCards = [];
   }
@@ -2698,9 +3127,18 @@
   async function showGameUI(account) {
     // サーバーデッキ取得（ゲストはスキップ）
     if (account && !account.isGuest && account.pin) {
-      window._serverDeckNames = await NetworkService.loadServerDecks(account.username, account.pin);
+      const serverDeckNames = await NetworkService.loadServerDecks(account.username, account.pin);
+      if (window.AppState) {
+        window.AppState.set('_serverDeckNames', serverDeckNames);
+      } else {
+        window._serverDeckNames = serverDeckNames;
+      }
     } else {
-      window._serverDeckNames = [];
+      if (window.AppState) {
+        window.AppState.set('_serverDeckNames', []);
+      } else {
+        window._serverDeckNames = [];
+      }
     }
 
     // デバイス判定
@@ -2799,7 +3237,20 @@
    */
   function logout() {
     AuthService.logout();
-    window._serverDeckNames = [];
+    if (window.GameController) {
+      window.GameController.clearOnlineSession();
+    }
+    if (window.AppState) {
+      window.AppState.patch({
+        _serverDeckNames: [],
+        _deckEditing: null,
+        _deckCards: []
+      });
+    } else {
+      window._serverDeckNames = [];
+      window._deckEditing = null;
+      window._deckCards = [];
+    }
     document.getElementById('app-desktop').classList.remove('active');
     document.getElementById('app-mobile').classList.remove('active');
     document.getElementById('login-username').value = '';
