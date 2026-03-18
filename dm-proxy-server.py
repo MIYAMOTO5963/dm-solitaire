@@ -1022,6 +1022,39 @@ def _is_pack_img_url(url: str) -> bool:
     return bool(_PACK_FNAME_RE.match(fname))
 
 
+def _img_from_dmwiki_setcode(html: str) -> str:
+    """Extract card image URL from official site using set code + card number found in dmwiki HTML.
+
+    dmwiki pages list the card's set code and number like:
+      <a href="/DM24-BD2">DM24-BD2 ...</a>（5/16）
+    This lets us construct the official thumbnail URL directly without a POST search,
+    which is unreliable from non-Japanese IP addresses (Railway, etc.).
+    """
+    # Find all occurrences of set code links followed by (N/M) card number
+    # e.g. href="/DM24-BD2" ... （5/16）
+    for m in re.finditer(r'href="/([A-Z]{2}[A-Z0-9\-]+)"', html, re.IGNORECASE):
+        raw_set = m.group(1)   # e.g. "DM24-BD2"
+        # Look for （N/M） within the next 300 chars (allows for tag content between </a> and the number)
+        context = html[m.start(): m.start() + 300]
+        num_m = re.search(r'[（(](\d+)/\d+[）)]', context)
+        if not num_m:
+            continue
+        card_num = int(num_m.group(1))  # e.g. 5
+
+        # Skip non-card set codes (should all start with DM)
+        if not re.match(r'^DM', raw_set, re.IGNORECASE):
+            continue
+
+        # Construct filename: "DM24-BD2" + num 5 → "dm24bd2-005"
+        set_part = re.sub(r'-', '', raw_set).lower()   # "dm24bd2"
+        fname    = f"{set_part}-{card_num:03d}.jpg"
+
+        thumb_path = f"/wp-content/card/cardthumb/{fname}"
+        full_url   = OFFICIAL_BASE + thumb_path
+        return f"{BASE_URL}/img?url={urllib.parse.quote(full_url, safe='')}"
+    return ""
+
+
 def _img_from_dmwiki_html(html: str) -> str:
     """Extract a card scan (non-pack) image from an already-fetched dmwiki page.
 
@@ -1173,8 +1206,8 @@ def get_card_detail_dmwiki(name: str) -> dict | None:
         effect_rows.append(r)
     effect = "\n".join(effect_rows).strip()
 
-    # Get card image: dmwiki HTML → dmwiki attach list → official (name variants) → English wiki (name variants)
-    img_url = _img_from_dmwiki_html(html) or _img_from_dmwiki_attach(name)
+    # Get card image: dmwiki HTML → dmwiki set-code → dmwiki attach list → official (name variants) → English wiki (name variants)
+    img_url = _img_from_dmwiki_html(html) or _img_from_dmwiki_setcode(html) or _img_from_dmwiki_attach(name)
     candidates = _name_variants(card_name)
     if card_name != name:
         for variant in _name_variants(name):
