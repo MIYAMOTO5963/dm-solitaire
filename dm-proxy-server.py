@@ -1585,12 +1585,18 @@ def get_card_detail_dmwiki(name: str) -> dict | None:
                     break
 
     # Remaining rows: effect text (skip set codes; stop at wiki strategy sections)
+    # Pattern that matches a card-header row: "CardName  RARITY  Civ  (Cost)"
+    _card_header_pat = re.compile(
+        r'^.+?[\s\t\u3000]+[A-Z]{1,5}[+\uff0b]?[\s\t\u3000]+.+?[\s\t\u3000]+[（(]\d+[）)]\s*$'
+    )
     effect_rows = []
     for r in rows[2:]:
         if re.match(r'^DM\d', r):
             continue
         if re.match(r'^《', r):
             break  # wiki strategy section starts here (card name ref at row start)
+        if _card_header_pat.match(r):
+            break  # related card header row — stop here
         effect_rows.append(r)
     effect = "\n".join(effect_rows).strip()
 
