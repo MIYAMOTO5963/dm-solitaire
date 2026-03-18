@@ -182,8 +182,7 @@ function renderMobileUnderPeekLayers(card) {
   const under = Array.isArray(card?.underCards) ? card.underCards : [];
   if (!under.length) return '';
   const layers = under.slice(0, 3).map((uc, i) => {
-    const civ = getMobileCardCivClass(uc);
-    return `<div class="mg-under-peek-layer ${civ}" style="left:-${(i + 1) * 5}px"></div>`;
+    return `<div class="mg-under-peek-layer" style="left:-${(i + 1) * 5}px"></div>`;
   }).join('');
   const overflow = under.length > 3
     ? `<div class="mg-under-overflow">+${under.length - 3}</div>`
@@ -1644,11 +1643,11 @@ function renderMobileDeckList() {
 
   const deckGridHtml = orderedCards.length
     ? orderedCards.map((card, i) => {
-      const civClass = getMobileCardCivClass(card);
+
       const thumb = renderMobileCardThumb(card, 'ml-deck-thumb');
       const payload = escapeAttrJsMobile(encodeURIComponent(JSON.stringify(card)));
       return `
-        <div class="ml-deck-tile ${civClass}" onclick="openMobileDeckCardDetail('${payload}')">
+        <div class="ml-deck-tile" onclick="openMobileDeckCardDetail('${payload}')">
           ${thumb}
           <div class="ml-deck-tile-name">${escapeHtmlMobile(getMobileCardDisplayName(card))}</div>
           <div class="ml-deck-tile-meta">
@@ -1929,13 +1928,12 @@ function renderMobileSearchResults() {
   }
 
   const rows = cards.map(card => {
-    const civ = getMobileCardCivClass(card);
     const payload = encodeURIComponent(JSON.stringify(card));
     const cost = getMobileCardCostLabel(card);
     const cardName = getMobileCardDisplayName(card);
     const thumb = renderMobileCardThumb(card);
     return `
-      <div class="ml-search-item ${civ}">
+      <div class="ml-search-item">
         <div class="ml-search-card-head">
           ${thumb}
           <div class="ml-search-main">
@@ -2073,7 +2071,6 @@ function renderMobileGame() {
   };
 
   const renderChip = (card, zoneClass, idx = -1) => {
-    const civ = getMobileCardCivClass(card);
     const tapped = card?.tapped ? 'tapped' : '';
     const cost = Number.isFinite(Number(card?.cost)) ? Number(card.cost) : '-';
     const power = card?.power ? String(card.power) : '';
@@ -2096,7 +2093,6 @@ function renderMobileGame() {
     const chipClasses = [
       'mg-card-chip',
       zoneClass,
-      civ,
       tapped,
       imageUrl ? 'has-image' : '',
       underCount > 0 ? 'has-under' : '',
@@ -2152,9 +2148,8 @@ function renderMobileGame() {
   const myBZHTML = state.battleZone.map((c, i) => renderChip(c, 'battle', i)).join('');
   const myManaHTML = state.manaZone.map((c, i) => renderChip(c, 'mana', i)).join('');
   const myShieldHTML = state.shields.map((s, i) => {
-    const civ = s?.faceUp ? getMobileCardCivClass(s) : '';
     const sel = _mobileSelectedShieldIdx === i ? 'selected' : '';
-    return renderChip(s, `shield ${civ} ${sel}`, i);
+    return renderChip(s, `shield ${sel}`, i);
   }).join('');
 
   // Hand grouping with stacking
@@ -2172,7 +2167,7 @@ function renderMobileGame() {
     const directUnder = Array.isArray(c?.underCards) ? Math.min(c.underCards.length, 3) : 0;
     const ml = ((count > 1 ? layerCount : 0) + directUnder) * 5;
     const imgUrl = getMobileCardImageUrl(c);
-    return `<div class="mg-card-chip hand ${getMobileCardCivClass(c)} ${count > 1 ? 'stacked' : ''}"
+    return `<div class="mg-card-chip hand ${count > 1 ? 'stacked' : ''}"
       ${ml > 0 ? `style="margin-left:${ml}px"` : ''}
       onclick="openMobileHandActionSheet(${i})"
       oncontextmenu="openMobileCardZoneMenu(event,'hand',${i})"
@@ -2401,11 +2396,10 @@ function openMobileGraveyardModal() {
   const list = document.getElementById('mobile-graveyard-list');
   if (list) {
     list.innerHTML = grave.slice().reverse().map((card, i) => {
-      const civ = getMobileCardCivClass(card);
       const cost = Number.isFinite(Number(card?.cost)) ? Number(card.cost) : '-';
       const power = card?.power ? String(card.power) : '-';
       return `
-        <div class="dm-grave-item ${civ}">
+        <div class="dm-grave-item">
           <div class="dm-grave-item-no">${i + 1}</div>
           <div class="dm-grave-item-main">
             <div class="dm-grave-item-name">${escapeHtmlMobile(card?.name || 'カード')}</div>

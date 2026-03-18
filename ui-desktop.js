@@ -350,8 +350,7 @@ function renderDesktopUnderPeekLayers(card) {
   const under = Array.isArray(card?.underCards) ? card.underCards : [];
   if (!under.length) return '';
   const layers = under.slice(0, 3).map((uc, i) => {
-    const civ = getDesktopCardCivClass(uc);
-    return `<div class="dg-under-peek-layer ${civ}" style="left:-${(i + 1) * 5}px"></div>`;
+    return `<div class="dg-under-peek-layer" style="left:-${(i + 1) * 5}px"></div>`;
   }).join('');
   const overflow = under.length > 3
     ? `<div class="dg-under-overflow">+${under.length - 3}</div>`
@@ -1112,11 +1111,10 @@ function renderDesktopDeckList() {
   const gridHtml = expandedCards.length
     ? expandedCards.map(({ card, copyIndex, copies }) => {
       const cost = getDesktopCardCostLabel(card);
-      const civClass = getDesktopCardCivClass(card);
       const thumb = renderDesktopCardThumb(card, 'dl-grid-thumb');
       const payload = escapeAttrJs(encodeURIComponent(JSON.stringify(card)));
       return `
-        <div class="dl-grid-card ${civClass}" title="${escapeHtml(getDesktopCardDisplayName(card))}" onclick="openDesktopDeckCardDetail('${payload}')">
+        <div class="dl-grid-card" title="${escapeHtml(getDesktopCardDisplayName(card))}" onclick="openDesktopDeckCardDetail('${payload}')">
           ${thumb}
           <div class="dl-grid-meta">
             <span class="dl-grid-cost">${escapeHtml(String(cost))}</span>
@@ -1413,7 +1411,6 @@ function renderDesktopGame() {
   };
 
   const renderChip = (card, zoneClass, idx = -1, extra = '') => {
-    const civ = getDesktopCardCivClass(card);
     const tapped = card?.tapped ? 'tapped' : '';
     const cost = Number.isFinite(Number(card?.cost)) ? Number(card.cost) : '-';
     const power = card?.power ? String(card.power) : '';
@@ -1436,7 +1433,6 @@ function renderDesktopGame() {
     const chipClasses = [
       'dg-card-chip',
       zoneClass,
-      civ,
       tapped,
       extra,
       imageUrl ? 'has-image' : '',
@@ -1564,12 +1560,11 @@ function renderDesktopGame() {
             <span class="dg-v2-label">シールド<br><b>${state.shields.length}</b></span>
             <div class="dg-v2-cards">
               ${state.shields.length ? state.shields.map((c, i) => {
-                const civ = getDesktopCardCivClass(c);
                 const imageUrl = getDesktopCardImageUrl(c);
                 const shortName = getDesktopCardShortName(c?.name || '', 9);
                 const underCount = getDesktopUnderCardCount(c);
                 return `
-                  <div class="dg-card-chip shield ${civ} ${c?.faceUp ? 'faceup' : ''} ${imageUrl && c?.faceUp ? 'has-image' : ''} ${underCount > 0 ? 'has-under' : ''} ${_desktopSelectedShieldIdx === i ? 'selected' : ''} ${_desktopUnderInsertState ? 'stack-target' : ''}"
+                  <div class="dg-card-chip shield ${c?.faceUp ? 'faceup' : ''} ${imageUrl && c?.faceUp ? 'has-image' : ''} ${underCount > 0 ? 'has-under' : ''} ${_desktopSelectedShieldIdx === i ? 'selected' : ''} ${_desktopUnderInsertState ? 'stack-target' : ''}"
                     onclick="onDesktopShieldCardClick(${i})"
                     oncontextmenu="openDesktopCardZoneMenu(event, 'shields', ${i})"
                     title="${escapeHtml(c?.faceUp ? (c.name || 'シールド') : 'シールド')}"
@@ -1579,7 +1574,7 @@ function renderDesktopGame() {
                       ? (imageUrl
                         ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(c.name || 'SHIELD')}" class="dg-card-chip-img" loading="lazy" decoding="async" onerror="handleDesktopCardImageError(this)">`
                         : `<div class="dg-card-name">${escapeHtml(shortName || 'SH')}</div>`)
-                      : 'SH'}
+                      : ''}
                   </div>
                 `;
               }).join('') : '<div class="dg-zone-empty">空</div>'}
@@ -1610,12 +1605,11 @@ function renderDesktopGame() {
             <span class="dg-v2-label">手札<br><b>${state.hand.length}</b></span>
             <div id="desktop-hand-zone" class="dg-v2-cards">
               ${state.hand.length ? state.hand.map((c, i) => {
-                const civ = getDesktopCardCivClass(c);
                 const cost = Number.isFinite(Number(c?.cost)) ? Number(c.cost) : '-';
                 const power = c?.power ? String(c.power) : '';
                 const imageUrl = getDesktopCardImageUrl(c);
                 return `
-                  <div class="dg-card-chip hand ${civ} ${imageUrl ? 'has-image' : ''}" draggable="true"
+                  <div class="dg-card-chip hand ${imageUrl ? 'has-image' : ''}" draggable="true"
                     onclick="selectDesktopHandCard(${i}, event)"
                     oncontextmenu="openDesktopCardZoneMenu(event, 'hand', ${i})"
                     ondragstart="dragDesktopCard(event, ${i})"
@@ -2667,11 +2661,10 @@ function openDesktopGraveyardModal() {
   const list = document.getElementById('desktop-graveyard-list');
   if (list) {
     list.innerHTML = grave.slice().reverse().map((card, i) => {
-      const civ = getDesktopCardCivClass(card);
       const cost = Number.isFinite(Number(card?.cost)) ? Number(card.cost) : '-';
       const power = card?.power ? String(card.power) : '-';
       return `
-        <div class="dm-grave-item ${civ}">
+        <div class="dm-grave-item">
           <div class="dm-grave-item-no">${i + 1}</div>
           <div class="dm-grave-item-main">
             <div class="dm-grave-item-name">${escapeHtml(card?.name || 'カード')}</div>
