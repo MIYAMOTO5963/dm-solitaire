@@ -1080,7 +1080,6 @@ function renderDesktopDeckList() {
   const canBulkCloudRestore = canCloudSave && localDeckNames.length > 0;
 
   const cardCount = getDeckCardTotal(orderedCards);
-  const uniqueCount = orderedCards.length;
 
   const nameListHtml = orderedCards.length
     ? orderedCards.map((c, i) => {
@@ -1151,7 +1150,6 @@ function renderDesktopDeckList() {
           </div>
           <div class="dl-name-summary">
             <span>合計 ${cardCount}枚</span>
-            <span>ユニーク ${uniqueCount}</span>
           </div>
         </div>
 
@@ -1188,7 +1186,6 @@ function renderDesktopDeckList() {
             <div class="dl-edit-title">${escapeHtml(deckName)}</div>
             <div class="dl-edit-stats">
               <div>カード枚数: <strong>${cardCount}</strong> / 40</div>
-              <div>ユニーク: <strong>${uniqueCount}</strong></div>
             </div>
           </div>
 
