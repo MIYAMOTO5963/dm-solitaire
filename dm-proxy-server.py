@@ -61,6 +61,12 @@ _rate_limit_lock = threading.Lock()
 RATE_LIMIT_WINDOW = 300  # 5 minutes
 RATE_LIMIT_MAX_ATTEMPTS = 15  # attempts per window
 
+def _sanitize_username(s: str, maxlen: int = 20) -> str:
+    """Strip control characters and limit length from a username string."""
+    cleaned = re.sub(r'[\x00-\x1f\x7f]', '', str(s or '')).strip()
+    return cleaned[:maxlen] if maxlen else cleaned
+
+
 def check_rate_limit(ip: str) -> bool:
     """Check if IP has exceeded rate limit. Returns True if allowed, False if blocked."""
     now = time.time()
@@ -143,7 +149,7 @@ def _push_event(room: dict, p: str, event: str, data: dict):
 def _clean_rooms():
     """Remove rooms older than ROOM_TTL. Runs in a background thread."""
     while True:
-        time.sleep(3600)
+        time.sleep(300)
         now = time.time()
         with _rooms_lock:
             to_del = [rid for rid, r in _rooms.items()
@@ -442,8 +448,10 @@ def search_cards(query: str, page: int = 1) -> tuple[list[dict], int]:
         PAGE_SIZE = 10
         cache_key = _norm_fw(query).replace(" ", "")
         if cache_key not in _dmwiki_cache:
-            _dmwiki_cache[cache_key] = search_cards_dmwiki(query)
-        all_cards = _dmwiki_cache[cache_key]
+            results = search_cards_dmwiki(query)
+            if results:  # only cache non-empty to avoid permanently stale entries
+                _dmwiki_cache[cache_key] = results
+        all_cards = _dmwiki_cache.get(cache_key, [])
         start = (page - 1) * PAGE_SIZE
         return all_cards[start:start + PAGE_SIZE], len(all_cards)
 
@@ -739,7 +747,30 @@ def search_cards_dmwiki(query: str) -> list[dict]:
     # Normalize query for wiki search: insert spaces at kanji/kana boundary
     search_query = _ja_insert_spaces(query)
 
-    # POST to PukiWiki search — scope=page searches page titles only
+    def _parse_result_html(html: str) -> list[dict]:
+        cards = []
+        seen: set[str] = set()
+        # Search results link as: ?cmd=read&amp;page=ENCODED_PAGE_NAME&amp;word=...
+        # In raw HTML &amp; appears as literal &amp; so ';page=' precedes the value
+        for m in re.finditer(r'(?:[?&;])page=([^&"\'<>;]+)', html):
+            try:
+                page_name = urllib.parse.unquote(m.group(1), encoding="utf-8")
+            except Exception:
+                continue
+            if not (page_name.startswith("《") and page_name.endswith("》")):
+                continue
+            clean = page_name[1:-1]  # strip 《》
+            if not clean or clean in seen:
+                continue
+            ntitle = _norm_fw(clean)
+            # Match with or without spaces (wiki uses "霊淵 ゴツンマ", user may type "霊淵ゴツンマ")
+            if nq not in ntitle and nq.replace(" ", "") not in ntitle.replace(" ", ""):
+                continue
+            seen.add(clean)
+            cards.append({"id": f"dmwiki_{clean}", "name": clean, "thumb": ""})
+        return cards
+
+    # First try: page-title-only search (fast, precise)
     form = urllib.parse.urlencode(
         {"word": search_query, "type": "AND", "scope": "page"}, encoding="utf-8"
     ).encode()
@@ -747,27 +778,17 @@ def search_cards_dmwiki(query: str) -> list[dict]:
     if not html:
         return []
 
-    cards = []
-    seen: set[str] = set()
+    cards = _parse_result_html(html)
 
-    # Search results link as: ?cmd=read&amp;page=ENCODED_PAGE_NAME&amp;word=...
-    # In raw HTML &amp; appears as literal &amp; so ';page=' precedes the value
-    for m in re.finditer(r'(?:[?&;])page=([^&"\'<>;]+)', html):
-        try:
-            page_name = urllib.parse.unquote(m.group(1), encoding="utf-8")
-        except Exception:
-            continue
-        if not (page_name.startswith("《") and page_name.endswith("》")):
-            continue
-        clean = page_name[1:-1]  # strip 《》
-        if not clean or clean in seen:
-            continue
-        ntitle = _norm_fw(clean)
-        # Match with or without spaces (wiki uses "霊淵 ゴツンマ", user may type "霊淵ゴツンマ")
-        if nq not in ntitle and nq.replace(" ", "") not in ntitle.replace(" ", ""):
-            continue
-        seen.add(clean)
-        cards.append({"id": f"dmwiki_{clean}", "name": clean, "thumb": ""})
+    # Second try: full-content search when title search returns nothing
+    # (handles cases where PukiWiki title tokenization misses partial matches)
+    if not cards:
+        form2 = urllib.parse.urlencode(
+            {"word": search_query, "type": "AND"}, encoding="utf-8"
+        ).encode()
+        html2 = _dmwiki_fetch("/?cmd=search", post_data=form2)
+        if html2:
+            cards = _parse_result_html(html2)
 
     return cards
 
@@ -787,10 +808,11 @@ def _img_from_en_wiki(card_name: str) -> str:
     """Search English Fandom wiki for the JP name in wikitext and return thumbnail.
     Only returns a thumbnail if the matched page actually has a Cardtable (is a card page).
     """
+    safe_name = card_name.replace('"', '')
     d = wiki_get({
         "action": "query",
         "list": "search",
-        "srsearch": f'insource:"{card_name}"',
+        "srsearch": f'insource:"{safe_name}"',
         "srnamespace": "0",
         "srlimit": "5",
         "srprop": "size",
@@ -868,7 +890,14 @@ def _name_variants(card_name: str) -> list[str]:
     if len(tail) >= 4:
         _add(tail)
 
-    return variants[:4]
+    # Twin pact (e.g. "カードA/カードB"): add each half as a separate variant
+    if '/' in base:
+        for part in base.split('/'):
+            part = part.strip()
+            if len(part) >= 2:
+                _add(part)
+
+    return variants[:6]
 
 
 def _img_from_official(card_name: str) -> str:
@@ -951,6 +980,7 @@ def _img_from_dmwiki_html(html: str) -> str:
     Pack/set images have filenames like DM24-RP1.jpg; card scans have other names.
     Returns "" if only pack images are found so the caller can try other sources.
     """
+    # Linked images: href="?plugin=ref..." (most common)
     for m in re.finditer(
         r'href="(\?plugin=ref[^"]*\.(?:jpg|jpeg|png)[^"]*)"',
         html, re.IGNORECASE
@@ -958,6 +988,17 @@ def _img_from_dmwiki_html(html: str) -> str:
         url = m.group(1)
         if _is_pack_filename(url):
             continue  # skip pack/set images
+        rel = re.sub(r'&thumbnail(?:=[^&"]*)?', '', url)
+        full_url = f"{DMWIKI_BASE}/{rel}"
+        return f"{BASE_URL}/img?url={urllib.parse.quote(full_url, safe='')}"
+    # nolink images: <img src="?plugin=ref..."> without anchor wrapper
+    for m in re.finditer(
+        r'<img[^>]+src="(\?plugin=ref[^"]*\.(?:jpg|jpeg|png)[^"]*)"',
+        html, re.IGNORECASE
+    ):
+        url = m.group(1)
+        if _is_pack_filename(url):
+            continue
         rel = re.sub(r'&thumbnail(?:=[^&"]*)?', '', url)
         full_url = f"{DMWIKI_BASE}/{rel}"
         return f"{BASE_URL}/img?url={urllib.parse.quote(full_url, safe='')}"
@@ -1125,13 +1166,25 @@ def fetch_binary(url: str):
 # ─── HTTP Handler ──────────────────────────────────────────────────────────────
 
 class DMServer(ThreadingMixIn, HTTPServer):
-    allow_reuse_address = False   # prevent old zombie processes from stealing requests
+    allow_reuse_address = True
     daemon_threads = True         # threads die with the server
 
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print(f"  {self.address_string()} {fmt % args}", flush=True)
+
+    def _client_ip(self) -> str:
+        """クライアントIPを取得。X-Real-IP > X-Forwarded-For先頭 > 直接接続の優先順。
+        X-Forwarded-For は偽装可能なため、信頼できるプロキシが付与する
+        X-Real-IP を優先する。"""
+        real_ip = self.headers.get("X-Real-IP", "").strip()
+        if real_ip:
+            return real_ip
+        forwarded = self.headers.get("X-Forwarded-For", "").strip()
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        return self.client_address[0]
 
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -1203,10 +1256,14 @@ class Handler(BaseHTTPRequestHandler):
             if p not in ("p1", "p2"):
                 return self._json({"error": "invalid p"}, 400)
             op = "p2" if p == "p1" else "p1"
+            _TRANSIENT = {"hand_reveal_request", "hand_data", "discard_select", "discard_random"}
             with room['lock']:
-                room[p]['pub'] = data
+                if atype not in _TRANSIENT:
+                    room[p]['pub'] = data
                 if atype == "turn_end":
                     _push_event(room, op, "turn_end", data)
+                elif atype in _TRANSIENT:
+                    _push_event(room, op, atype, data)
                 else:
                     _push_event(room, op, "opponent_state", data)
             self._json({"ok": True})
@@ -1227,18 +1284,17 @@ class Handler(BaseHTTPRequestHandler):
             player_name = room['p1_name'] if p == 'p1' else room['p2_name']
             op = "p2" if p == "p1" else "p1"
             with room['lock']:
-                _push_event(room, p, 'chat_message', {'p': p, 'name': player_name, 'msg': msg})
                 _push_event(room, op, 'chat_message', {'p': p, 'name': player_name, 'msg': msg})
             self._json({"ok": True})
 
         # POST /profile/create  { username, pin, last_deck }
         elif parsed.path == "/profile/create":
             # Rate limiting
-            client_ip = self.headers.get("X-Forwarded-For", self.client_address[0]).split(",")[0].strip()
+            client_ip = self._client_ip()
             if not check_rate_limit(client_ip):
                 return self._json({"error": "too many requests"}, 429)
             
-            username = data.get("username", "").strip()[:20]
+            username = _sanitize_username(data.get("username", ""), maxlen=20)
             pin = str(data.get("pin", "")).strip()
             last_deck = data.get("last_deck", "")[:20]
             
@@ -1261,19 +1317,19 @@ class Handler(BaseHTTPRequestHandler):
         # POST /profile/login  { username, pin }
         elif parsed.path == "/profile/login":
             # Rate limiting
-            client_ip = self.headers.get("X-Forwarded-For", self.client_address[0]).split(",")[0].strip()
+            client_ip = self._client_ip()
             if not check_rate_limit(client_ip):
                 return self._json({"error": "too many requests"}, 429)
-            
-            username = data.get("username", "").strip()
+
+            username = _sanitize_username(data.get("username", ""))
             pin = str(data.get("pin", "")).strip()
-            
-            if not username:
-                return self._json({"error": "username required"}, 400)
-            
+
+            if not username or not pin:
+                return self._json({"error": "username and pin required"}, 400)
+
             with _profiles_lock:
                 profile = _profiles.get(username)
-            
+
             if not profile or not verify_pin(pin, profile["pin_hash"], profile["pin_salt"]):
                 return self._json({"error": "invalid username or pin"}, 401)
             
@@ -1283,28 +1339,33 @@ class Handler(BaseHTTPRequestHandler):
         # POST /profile/update  { username, pin, last_deck }
         elif parsed.path == "/profile/update":
             # Rate limiting
-            client_ip = self.headers.get("X-Forwarded-For", self.client_address[0]).split(",")[0].strip()
+            client_ip = self._client_ip()
             if not check_rate_limit(client_ip):
                 return self._json({"error": "too many requests"}, 429)
             
-            username = data.get("username", "").strip()
+            username = _sanitize_username(data.get("username", ""))
             pin = str(data.get("pin", "")).strip()
             last_deck = data.get("last_deck", "")[:20]
-            
+
             if not username or not pin:
                 return self._json({"error": "username and pin required"}, 400)
             
             with _profiles_lock:
                 profile = _profiles.get(username)
-            
+
             if not profile or not verify_pin(pin, profile["pin_hash"], profile["pin_salt"]):
                 return self._json({"error": "invalid username or pin"}, 401)
-            
+
+            pin_hash = profile["pin_hash"]
+            pin_salt = profile["pin_salt"]
+
             with _profiles_lock:
+                if username not in _profiles:
+                    return self._json({"error": "invalid username or pin"}, 401)
                 _profiles[username]["last_deck"] = last_deck
-            
+
             # Save to database
-            _save_profile_to_db(username, profile["pin_hash"], profile["pin_salt"], last_deck)
+            _save_profile_to_db(username, pin_hash, pin_salt, last_deck)
             
             print(f"[profile] updated {username}", flush=True)
             self._json({"ok": True})
@@ -1314,12 +1375,14 @@ class Handler(BaseHTTPRequestHandler):
             username = data.get("username", "").strip()
             pin = str(data.get("pin", "")).strip()
             deck_name = data.get("deck_name", "").strip()[:50]
-            deck_data = data.get("deck_data", {})
-            
+            deck_data = data.get("deck_data", [])
+
             if not username or not pin:
                 return self._json({"error": "username and pin required"}, 400)
             if not deck_name:
                 return self._json({"error": "deck_name required"}, 400)
+            if not isinstance(deck_data, list):
+                return self._json({"error": "deck_data must be an array"}, 400)
             
             with _profiles_lock:
                 profile = _profiles.get(username)
@@ -1428,7 +1491,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             while True:
                 try:
-                    msg = q.get(timeout=20)
+                    msg = q.get(timeout=10)
                     self._sse_write(msg['event'], msg['data'])
                 except queue.Empty:
                     self._sse_write("ping", {})

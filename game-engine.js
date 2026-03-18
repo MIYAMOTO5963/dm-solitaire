@@ -532,9 +532,6 @@ class GameEngine {
     const card = this._takeCardFromZone(sourceKey, sourceIdx);
     if (!card) return false;
 
-    if (sourceKey === 'shields' && card.faceUp !== undefined) {
-      delete card.faceUp;
-    }
     if (card.faceUp !== undefined) {
       delete card.faceUp;
     }
@@ -589,10 +586,11 @@ class GameEngine {
   }
 
   /**
-   * 内部: 状態を履歴に保存
+   * 内部: 状態を履歴に保存（最大50件）
    */
   _saveState() {
     this.history.push(JSON.stringify(this.state));
+    if (this.history.length > 50) this.history.shift();
   }
 
   _makeInstanceId(cardId) {

@@ -16,13 +16,15 @@ const AuthService = {
 
   /**
    * アカウント情報をSessionStorageに保存
+   * PINはメモリにのみ保持し、sessionStorageには書かない
    * @param {string} username
    * @param {string} pin
    */
   saveAccount(username, pin) {
     this._account = { username, pin };
     try {
-      sessionStorage.setItem('dm_account', JSON.stringify({ username, pin }));
+      // PINは保存しない（平文流出防止）
+      sessionStorage.setItem('dm_account', JSON.stringify({ username }));
     } catch (e) {
       console.error('SessionStorage保存失敗:', e);
     }
@@ -30,12 +32,25 @@ const AuthService = {
 
   /**
    * SessionStorageからアカウント情報を読み込み
-   * @returns {Object|null} {username, pin} または null
+   * PINはメモリにしかないため、ページリロード後は needsReauth: true を返す
+   * @returns {Object|null}
    */
   loadAccount() {
     try {
       const stored = sessionStorage.getItem('dm_account');
-      this._account = stored ? JSON.parse(stored) : null;
+      if (!stored) { this._account = null; return null; }
+      const parsed = JSON.parse(stored);
+      // ゲストはPIN不要のためそのまま返す
+      if (parsed.isGuest) {
+        this._account = parsed;
+        return this._account;
+      }
+      // メモリにPINが残っていればそれを使う（同一タブ内ページ遷移）
+      if (this._account && this._account.username === parsed.username && this._account.pin) {
+        return this._account;
+      }
+      // PINがない → 再認証が必要
+      this._account = { username: parsed.username, pin: null, needsReauth: true };
       return this._account;
     } catch (e) {
       console.error('SessionStorage読み込み失敗:', e);

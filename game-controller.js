@@ -129,9 +129,11 @@
     if (global.AppState) {
       global.AppState.patch({
         _ol: null,
+        _olDeckName: null,
         _olDeckData: null,
         _olOpponent: null,
         _olCurrentPlayer: null,
+        _olStageName: null,
         _olChatLogDesktop: [],
         _olChatLogMobile: []
       });
@@ -139,9 +141,11 @@
     }
 
     global._ol = null;
+    global._olDeckName = null;
     global._olDeckData = null;
     global._olOpponent = null;
     global._olCurrentPlayer = null;
+    global._olStageName = null;
     global._olChatLogDesktop = [];
     global._olChatLogMobile = [];
   }
@@ -344,6 +348,7 @@
 
   function shouldApplyRemotePayload(onlineState, payload) {
     if (!onlineState || typeof onlineState !== 'object') return false;
+    if (!payload || typeof payload !== 'object') return false;
 
     const seq = Number(payload?.seq || 0);
     const last = Number(onlineState.remoteSeq || 0);

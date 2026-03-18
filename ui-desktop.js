@@ -12,12 +12,14 @@ let _desktopSearchDebounceTimer = null;
 let _desktopSearchRequestToken = 0;
 let _desktopDelegatedEventsBound = false;
 let _desktopDeckHydrateToken = 0;
+let _desktopDeckSaving = false;
 const _desktopSearchHydrateCooldownUntil = new Map();
 const DESKTOP_SEARCH_HYDRATE_NO_IMAGE_COOLDOWN_MS = 45 * 1000;
 const DESKTOP_SEARCH_HYDRATE_ERROR_COOLDOWN_MS = 8 * 1000;
 let _desktopZoneMenuState = null;
 let _desktopZoneMenuGlobalBound = false;
 let _desktopUnderInsertState = null;
+let _handDiscardStateDesktop = null;
 let _desktopDetailCardState = null;
 let _desktopDetailRequestToken = 0;
 let _desktopDetailAllowAdd = true;
@@ -342,6 +344,19 @@ function renderDesktopUnderLayers(count) {
   const layerCount = Math.min(8, Math.max(0, Number(count) || 0));
   if (!layerCount) return '';
   return Array.from({ length: layerCount }).map(() => '<span class="dg-under-layer"></span>').join('');
+}
+
+function renderDesktopUnderPeekLayers(card) {
+  const under = Array.isArray(card?.underCards) ? card.underCards : [];
+  if (!under.length) return '';
+  const layers = under.slice(0, 3).map((uc, i) => {
+    const civ = getDesktopCardCivClass(uc);
+    return `<div class="dg-under-peek-layer ${civ}" style="left:-${(i + 1) * 5}px"></div>`;
+  }).join('');
+  const overflow = under.length > 3
+    ? `<div class="dg-under-overflow">+${under.length - 3}</div>`
+    : '';
+  return layers + overflow;
 }
 
 function getDesktopCardTypeLabel(type) {
@@ -759,9 +774,9 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-/** onclick 等のシングルクォート文字列用（デッキ名に ' が含まれると壊れるのを防ぐ） */
+/** onclick 等のシングルクォート文字列用（デッキ名に ' や " が含まれると壊れるのを防ぐ） */
 function escapeAttrJs(str) {
-  return String(str ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  return String(str ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
 function getDesktopCardImageUrl(card) {
@@ -967,13 +982,10 @@ async function sendDesktopChat() {
   if (!msg) return;
 
   input.value = '';
-  try {
-    const ok = await NetworkService.sendChat(window._ol.room, window._ol.p, msg);
-    if (!ok) {
-      appendDesktopChatMessage('SYSTEM', 'メッセージ送信に失敗しました。', 'sys');
-    }
-  } catch (err) {
-    console.error('send chat error', err);
+  const myName = window._ol.p === 'p1' ? (window._ol.p1Name || 'Player 1') : (window._ol.p2Name || 'Player 2');
+  appendDesktopChatMessage(myName, msg, window._ol.p);
+  const ok = await NetworkService.sendChat(window._ol.room, window._ol.p, msg);
+  if (!ok) {
     appendDesktopChatMessage('SYSTEM', 'メッセージ送信に失敗しました。', 'sys');
   }
 }
@@ -1443,6 +1455,7 @@ function renderDesktopGame() {
       ? `oncontextmenu="openDesktopCardZoneMenu(event, '${sourceZone}', ${idx})"`
       : '';
 
+    const directUnderCount = Array.isArray(card?.underCards) ? Math.min(card.underCards.length, 3) : 0;
     return `
       <div class="${chipClasses}"
         title="${escapeHtml(card?.name || '')}"
@@ -1451,8 +1464,9 @@ function renderDesktopGame() {
         ${onClickAttr}
         ${contextMenuAttr}
         data-zone="${sourceZone}"
-        data-index="${idx}">
-        ${underCount > 0 ? `<div class="dg-under-stack" aria-hidden="true">${renderDesktopUnderLayers(underCount)}</div><div class="dg-under-count">+${underCount}</div>` : ''}
+        data-index="${idx}"
+        ${directUnderCount > 0 ? `style="margin-left:${directUnderCount * 5}px"` : ''}>
+        ${underCount > 0 ? renderDesktopUnderPeekLayers(card) : ''}
         ${imageUrl
           ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(card?.name || 'CARD')}" class="dg-card-chip-img" loading="lazy" decoding="async" onerror="handleDesktopCardImageError(this)">`
           : `<div class="dg-card-cost">${escapeHtml(String(cost))}</div>
@@ -1508,7 +1522,7 @@ function renderDesktopGame() {
             <div class="dg-opp-title">相手エリア: ${escapeHtml(oppName)}</div>
             <div class="dg-opp-grid">
               <div class="dg-opp-panel">
-                <div class="dg-opp-label">手札 (${Number(opp.hand ?? 0)})</div>
+                <div class="dg-opp-label">手札 (${Number(opp.hand ?? 0)}) ${window._ol ? `<button class="dg-handdiscard-btn" onclick="openDesktopHandDiscardMenu()" title="ハンデス">ハンデス</button>` : ''}</div>
                 ${renderDesktopBackCards(Number(opp.hand ?? 0))}
               </div>
               <div class="dg-opp-panel">
@@ -1787,6 +1801,163 @@ function setDesktopCardTapped(zone, idx, tapped) {
   renderDesktopGame();
 }
 
+function openDesktopHandDiscardMenu() {
+  if (!window._ol) return;
+  if (!canActDesktopOnline()) {
+    showDesktopToast('相手のターンです', 'warn');
+    return;
+  }
+  const opp = window._olOpponent;
+  if (!opp || (opp.hand || 0) <= 0) {
+    showDesktopToast('相手の手札がありません', 'warn');
+    return;
+  }
+  const el = document.getElementById('dmHandDiscardModal');
+  if (!el) return;
+  _handDiscardStateDesktop = { mode: 'selecting' };
+  const bodyEl = document.getElementById('dmHandDiscardBody');
+  if (bodyEl) bodyEl.classList.remove('mobile');
+  document.getElementById('dmHandDiscardTitle').textContent = 'ハンデス';
+  document.getElementById('dmHandDiscardContent').innerHTML = `
+    <div class="dm-hd-mode-btns">
+      <button class="dm-hd-btn" onclick="startHandRevealDesktop()">手札を見て選ぶ</button>
+      <button class="dm-hd-btn" onclick="startRandomDiscardDesktop()">ランダムに1枚</button>
+    </div>
+  `;
+  el.classList.add('open');
+}
+
+function startHandRevealDesktop() {
+  closeHandDiscardModal();
+  _handDiscardStateDesktop = { mode: 'waiting' };
+  sendHandActionDesktop('hand_reveal_request', {});
+  showDesktopToast('相手の手札データを要求しました...', 'info', 2000);
+}
+
+function startRandomDiscardDesktop() {
+  closeHandDiscardModal();
+  sendHandActionDesktop('discard_random', {});
+  showDesktopToast('ランダム捨て要求を送信しました', 'info', 2000);
+}
+
+function openDesktopHandSelectModal(cards) {
+  const el = document.getElementById('dmHandDiscardModal');
+  if (!el) return;
+  _handDiscardStateDesktop = { mode: 'selecting_card', cards };
+  document.getElementById('dmHandDiscardTitle').textContent = `相手の手札 (${cards.length}枚) - 捨てるカードを選択`;
+  const getCiv = (card) => {
+    const c = String(card?.civ || '').toLowerCase();
+    if (c.includes('fire') || c.includes('火')) return 'fire';
+    if (c.includes('water') || c.includes('水')) return 'water';
+    if (c.includes('light') || c.includes('光')) return 'light';
+    if (c.includes('darkness') || c.includes('dark') || c.includes('闇')) return 'dark';
+    if (c.includes('nature') || c.includes('自然')) return 'nature';
+    return 'multi';
+  };
+  document.getElementById('dmHandDiscardContent').innerHTML = `
+    <div class="dm-hd-card-list">
+      ${cards.map((c, i) => `
+        <div class="dm-hd-card ${getCiv(c)}" onclick="selectHandCardDesktop(${i})">
+          ${c.imgUrl
+            ? `<img src="${escapeHtml(c.imgUrl)}" alt="${escapeHtml(c.name || 'CARD')}" class="dm-hd-card-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+            : ''}
+          <div class="dm-hd-card-text"${c.imgUrl ? ' style="display:none"' : ''}>
+            <div class="dm-hd-card-cost">${escapeHtml(String(c.cost ?? '-'))}</div>
+            <div class="dm-hd-card-name">${escapeHtml(c.name || 'CARD')}</div>
+            ${c.power ? `<div class="dm-hd-card-power">P${escapeHtml(String(c.power))}</div>` : ''}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <div style="text-align:center;margin-top:8px">
+      <button class="dm-hd-cancel" onclick="closeHandDiscardModal()">キャンセル</button>
+    </div>
+  `;
+  el.classList.add('open');
+}
+
+function selectHandCardDesktop(index) {
+  if (!_handDiscardStateDesktop?.cards) return;
+  const card = _handDiscardStateDesktop.cards[index];
+  if (!card) return;
+  closeHandDiscardModal();
+  sendHandActionDesktop('discard_select', { cardName: card.name });
+  showDesktopToast(`「${card.name}」を捨てるよう要求しました`, 'info', 2500);
+}
+
+function openDesktopDiscardConfirmModal(cardName, isRandom) {
+  const hand = engine?.state?.hand || [];
+  if (!hand.length) {
+    showDesktopToast('手札がありません', 'warn');
+    return;
+  }
+  const el = document.getElementById('dmHandDiscardModal');
+  if (!el) return;
+  const bodyEl = document.getElementById('dmHandDiscardBody');
+  if (bodyEl) bodyEl.classList.remove('mobile');
+  let targetIndex = -1;
+  let displayName = '';
+  if (isRandom) {
+    targetIndex = Math.floor(Math.random() * hand.length);
+    displayName = hand[targetIndex]?.name || 'CARD';
+    document.getElementById('dmHandDiscardTitle').textContent = 'ランダム捨て要求';
+    document.getElementById('dmHandDiscardContent').innerHTML = `
+      <div class="dm-hd-confirm-msg">相手からランダムに1枚捨てるよう要求されています。</div>
+      <div class="dm-hd-confirm-card">${escapeHtml(displayName)}</div>
+      <div class="dm-hd-confirm-btns">
+        <button class="dm-hd-btn ok" onclick="executeDesktopDiscard(${targetIndex})">承認して捨てる</button>
+        <button class="dm-hd-cancel" onclick="closeHandDiscardModal()">却下</button>
+      </div>
+    `;
+  } else {
+    targetIndex = hand.findIndex(c => c?.name === cardName);
+    if (targetIndex === -1) {
+      showDesktopToast(`「${cardName}」は手札にありません`, 'warn');
+      return;
+    }
+    displayName = cardName;
+    document.getElementById('dmHandDiscardTitle').textContent = '捨て要求';
+    document.getElementById('dmHandDiscardContent').innerHTML = `
+      <div class="dm-hd-confirm-msg">相手から次のカードを捨てるよう要求されています。</div>
+      <div class="dm-hd-confirm-card">${escapeHtml(displayName)}</div>
+      <div class="dm-hd-confirm-btns">
+        <button class="dm-hd-btn ok" onclick="executeDesktopDiscard(${targetIndex})">承認して捨てる</button>
+        <button class="dm-hd-cancel" onclick="closeHandDiscardModal()">却下</button>
+      </div>
+    `;
+  }
+  _handDiscardStateDesktop = { mode: 'confirm', targetIndex };
+  el.classList.add('open');
+}
+
+function executeDesktopDiscard(index) {
+  closeHandDiscardModal();
+  const hand = engine?.state?.hand;
+  if (!Array.isArray(hand) || index < 0 || index >= hand.length) {
+    showDesktopToast('対象カードが見つかりません', 'warn');
+    return;
+  }
+  if (typeof engine._saveState === 'function') engine._saveState();
+  const removed = hand.splice(index, 1);
+  if (!removed.length) return;
+  const card = removed[0];
+  if (!engine.state.graveyard) engine.state.graveyard = [];
+  engine.state.graveyard.unshift(card);
+  showDesktopToast(`「${card?.name || 'CARD'}」を墓地に送りました`, 'info', 2000);
+  if (window._ol) olSendActionDesktop('state');
+  renderDesktopGame();
+}
+
+function openDesktopUnderCardsModal(zone, idx) {
+  closeDesktopCardZoneMenu();
+  window._underModalState = { zone, idx, isMobile: false };
+  if (typeof renderUnderCardsModal === 'function') renderUnderCardsModal();
+  const bodyEl = document.getElementById('dmUnderBody');
+  if (bodyEl) bodyEl.classList.remove('mobile');
+  const el = document.getElementById('dmUnderModal');
+  if (el) el.classList.add('open');
+}
+
 function prepareDesktopInsertUnder(fromZone, fromIndex) {
   closeDesktopCardZoneMenu();
 
@@ -1935,6 +2106,10 @@ function getDesktopCardZoneActions(sourceZone, sourceCard) {
       { kind: 'sep' },
       move('墓地へ', 'graveyard', 'top', true)
     );
+    if (Array.isArray(sourceCard?.underCards) && sourceCard.underCards.length > 0) {
+      actions.push({ kind: 'sep' });
+      actions.push({ kind: 'viewUnder', label: `下のカードを見る (${sourceCard.underCards.length}枚)` });
+    }
   } else if (sourceZone === 'manaZone') {
     actions.push(
       { kind: 'tap', label: sourceCard?.tapped ? 'アンタップ' : 'タップ（マナ使用）', tapped: !sourceCard?.tapped },
@@ -1946,6 +2121,10 @@ function getDesktopCardZoneActions(sourceZone, sourceCard) {
       { kind: 'sep' },
       move('墓地へ', 'graveyard', 'top', true)
     );
+    if (Array.isArray(sourceCard?.underCards) && sourceCard.underCards.length > 0) {
+      actions.push({ kind: 'sep' });
+      actions.push({ kind: 'viewUnder', label: `下のカードを見る (${sourceCard.underCards.length}枚)` });
+    }
   } else if (sourceZone === 'shields') {
     actions.push(
       move('公開中へ（シールドブレイク）', 'revealedZone'),
@@ -2223,6 +2402,17 @@ function openDesktopCardZoneMenu(event, sourceZone, sourceIndex) {
       `;
     }
 
+    if (action.kind === 'viewUnder') {
+      return `
+        <button
+          type="button"
+          class="${className}"
+          onclick="openDesktopUnderCardsModal('${sourceZone}', ${idx})">
+          ${escapeHtml(action.label)}
+        </button>
+      `;
+    }
+
     if (action.kind === 'flip') {
       return `
         <button
@@ -2317,6 +2507,7 @@ let _currentDragIdx = null;
 
 function showDesktopCardPreview(event, idx, card) {
   if (idx >= 0) {
+    if (!engine) return;
     card = engine.state.hand[idx];
   } else if (typeof card === 'string') {
     try {
@@ -3333,16 +3524,17 @@ async function openDesktopDeck(name) {
     const savedDecks = getSavedDecks();
     let cards = [];
 
-    if (Array.isArray(savedDecks[deckName])) {
-      cards = JSON.parse(JSON.stringify(savedDecks[deckName])).map(card => NetworkService.normalizeCardData(card));
-    } else {
-      const account = AuthService.getCurrentAccount();
-      if (account && !account.isGuest && account.pin) {
-        const remoteDeck = await NetworkService.fetchServerDeck(account.username, account.pin, deckName);
-        cards = Array.isArray(remoteDeck)
-          ? remoteDeck.map(card => NetworkService.normalizeCardData(card))
-          : [];
+    const account = AuthService.getCurrentAccount();
+    if (account && !account.isGuest && account.pin) {
+      // ログイン中はクラウドを優先、失敗時にローカルへフォールバック
+      const remoteDeck = await NetworkService.fetchServerDeck(account.username, account.pin, deckName);
+      if (Array.isArray(remoteDeck) && remoteDeck.length > 0) {
+        cards = remoteDeck.map(card => NetworkService.normalizeCardData(card));
+      } else if (Array.isArray(savedDecks[deckName])) {
+        cards = JSON.parse(JSON.stringify(savedDecks[deckName])).map(card => NetworkService.normalizeCardData(card));
       }
+    } else if (Array.isArray(savedDecks[deckName])) {
+      cards = JSON.parse(JSON.stringify(savedDecks[deckName])).map(card => NetworkService.normalizeCardData(card));
     }
 
     const sortedCards = sortDesktopDeckCards(cards);
@@ -3467,6 +3659,14 @@ async function addToDesktopDeck(cardJson, addCount = 1) {
     const normalizedKey = String(normalized.cardId || normalized.id || '');
     const count = Math.max(1, Math.min(4, Number.isFinite(Number(addCount)) ? Math.floor(Number(addCount)) : 1));
 
+    if (!normalizedKey) {
+      // cardId が解決できない場合は重複判定をスキップして末尾追加
+      window._deckCards.push({ ...normalized, count });
+      sortCurrentDesktopDeckCards();
+      renderDesktopDeckList();
+      return true;
+    }
+
     const existing = window._deckCards.find(c => String(c.cardId || c.id || '') === normalizedKey);
     if (existing) {
       existing.count = (existing.count || 1) + count;
@@ -3565,6 +3765,7 @@ async function restoreAllDesktopLocalDecksToCloud() {
 }
 
 async function saveDesktopDeckToCloud() {
+  if (_desktopDeckSaving) return;
   if (!window._deckEditing) {
     showDesktopToast('先に編集するデッキを選択してください', 'warn');
     return;
@@ -3592,36 +3793,41 @@ async function saveDesktopDeckToCloud() {
   const deckData = window._deckCards.map(card => NetworkService.normalizeCardData(card));
   if (!deckName) return;
 
-  const result = await NetworkService.saveDeck(account.username, account.pin, deckName, deckData);
-  if (result.error) {
-    showDesktopToast(result.error, 'warn');
-    return;
-  }
-
-  if (typeof NetworkService.clearDeckCache === 'function') {
-    NetworkService.clearDeckCache(deckName);
-  }
-
-  const decks = getSavedDecks();
-  decks[deckName] = deckData;
-  if (window.GameController) {
-    window.GameController.saveSavedDecks(decks);
-  } else {
-    localStorage.setItem('dm_decks', JSON.stringify(decks));
-  }
-
-  const names = await NetworkService.loadServerDecks(account.username, account.pin);
-  if (Array.isArray(names)) {
-    if (window.AppState) {
-      window.AppState.set('_serverDeckNames', names);
-    } else {
-      window._serverDeckNames = names;
+  _desktopDeckSaving = true;
+  try {
+    const result = await NetworkService.saveDeck(account.username, account.pin, deckName, deckData);
+    if (result.error) {
+      showDesktopToast(result.error, 'warn');
+      return;
     }
-  } else {
-    showDesktopToast('クラウド一覧の更新に失敗しました（ローカル保存のみ反映）', 'warn');
+
+    if (typeof NetworkService.clearDeckCache === 'function') {
+      NetworkService.clearDeckCache(deckName);
+    }
+
+    const decks = getSavedDecks();
+    decks[deckName] = deckData;
+    if (window.GameController) {
+      window.GameController.saveSavedDecks(decks);
+    } else {
+      localStorage.setItem('dm_decks', JSON.stringify(decks));
+    }
+
+    const names = await NetworkService.loadServerDecks(account.username, account.pin);
+    if (Array.isArray(names)) {
+      if (window.AppState) {
+        window.AppState.set('_serverDeckNames', names);
+      } else {
+        window._serverDeckNames = names;
+      }
+    } else {
+      showDesktopToast('クラウド一覧の更新に失敗しました（ローカル保存のみ反映）', 'warn');
+    }
+    showDesktopToast('保存しました', 'ok');
+    renderDesktopDeckList();
+  } finally {
+    _desktopDeckSaving = false;
   }
-  showDesktopToast('保存しました', 'ok');
-  renderDesktopDeckList();
 }
 
 /**
@@ -3844,7 +4050,7 @@ function desktopOnlineStartWaitingForJoin() {
     window._ol.eventSource = es;
 
     es.addEventListener('joined', (e) => {
-      const data = JSON.parse(e.data);
+      let data; try { data = JSON.parse(e.data); } catch { return; }
       if (!window._ol || window._ol.room !== expectedRoom) return;
 
       window._ol.p2Name = data.p2_name || 'Player 2';
@@ -4257,20 +4463,20 @@ function olStartEventListenerDesktop() {
     if (!window._ol || window._ol.room !== room) return;
 
     window._ol.reconnectAttempt = 0;
-    const data = JSON.parse(e.data);
+    let data; try { data = JSON.parse(e.data); } catch { return; }
     if (!shouldApplyRemotePayloadDesktop(data)) return;
     const other = window._ol.p === 'p1' ? data.p2 : data.p1;
     const myNum = window._ol.p === 'p1' ? 1 : 2;
     const wasMyTurn = window._olCurrentPlayer === myNum;
 
-    if (data.turn !== undefined && data.turn !== null) {
+    if (Number.isFinite(data.turn) && data.turn > 0) {
       if (typeof engine.syncTurn === 'function') {
         engine.syncTurn(data.turn);
       }
     }
     if (other) window._olOpponent = normalizeDesktopOpponentState(other);
     maybeAutoOpenDesktopOpponentDeckRevealModal();
-    if (data.active) window._olCurrentPlayer = data.active === 'p1' ? 1 : 2;
+    if (data.active === 'p1' || data.active === 'p2') window._olCurrentPlayer = data.active === 'p1' ? 1 : 2;
 
     const isMyTurn = window._olCurrentPlayer === myNum;
     if (!wasMyTurn && isMyTurn) {
@@ -4288,25 +4494,25 @@ function olStartEventListenerDesktop() {
     if (!window._ol || window._ol.room !== room) return;
 
     window._ol.reconnectAttempt = 0;
-    const data = JSON.parse(e.data);
+    let data; try { data = JSON.parse(e.data); } catch { return; }
     if (!shouldApplyRemotePayloadDesktop(data)) return;
     const other = window._ol.p === 'p1' ? data.p2 : data.p1;
     const myNum = window._ol.p === 'p1' ? 1 : 2;
     const wasMyTurn = window._olCurrentPlayer === myNum;
 
-    if (data.turn !== undefined && data.turn !== null) {
+    if (Number.isFinite(data.turn) && data.turn > 0) {
       if (typeof engine.syncTurn === 'function') {
         engine.syncTurn(data.turn);
       }
     }
     if (other) window._olOpponent = normalizeDesktopOpponentState(other);
     maybeAutoOpenDesktopOpponentDeckRevealModal();
-    if (data.active) {
+    if (data.active === 'p1' || data.active === 'p2') {
       window._olCurrentPlayer = data.active === 'p1' ? 1 : 2;
     }
 
     const isMyTurn = window._olCurrentPlayer === myNum;
-    if (!wasMyTurn && isMyTurn) {
+    if (!wasMyTurn && isMyTurn && engine && engine.state) {
       [...engine.state.battleZone, ...engine.state.manaZone].forEach(card => {
         card.tapped = false;
       });
@@ -4321,8 +4527,41 @@ function olStartEventListenerDesktop() {
     if (!window._ol || window._ol.room !== room) return;
 
     window._ol.reconnectAttempt = 0;
-    const data = JSON.parse(e.data);
+    let data; try { data = JSON.parse(e.data); } catch { return; }
     appendDesktopChatMessage(data.name || 'Player', data.msg || '', data.p || '');
+  });
+
+  es.addEventListener('hand_reveal_request', (e) => {
+    if (!window._ol || window._ol.room !== room) return;
+    const cards = (engine?.state?.hand || []).map(c => ({
+      name: c?.name || '',
+      civ: String(c?.civilization || c?.civ || ''),
+      cost: c?.cost,
+      power: c?.power || '',
+      imgUrl: (typeof getDesktopCardImageUrl === 'function' ? getDesktopCardImageUrl(c) : '') || ''
+    }));
+    sendHandActionDesktop('hand_data', { cards });
+    showDesktopToast('相手があなたの手札を確認しています...', 'info', 2000);
+  });
+
+  es.addEventListener('hand_data', (e) => {
+    if (!window._ol || window._ol.room !== room) return;
+    let data;
+    try { data = JSON.parse(e.data); } catch { return; }
+    const cards = Array.isArray(data.cards) ? data.cards : [];
+    openDesktopHandSelectModal(cards);
+  });
+
+  es.addEventListener('discard_select', (e) => {
+    if (!window._ol || window._ol.room !== room) return;
+    let data;
+    try { data = JSON.parse(e.data); } catch { return; }
+    openDesktopDiscardConfirmModal(data.cardName || '', false);
+  });
+
+  es.addEventListener('discard_random', (e) => {
+    if (!window._ol || window._ol.room !== room) return;
+    openDesktopDiscardConfirmModal('', true);
   });
 
   es.onerror = () => {
@@ -4376,6 +4615,17 @@ function shouldApplyRemotePayloadDesktop(payload) {
 
   window._ol.remoteSeq = seq;
   return true;
+}
+
+function sendHandActionDesktop(type, extra) {
+  if (!window._ol || !engine) return;
+  const payload = Object.assign({
+    room: window._ol.room,
+    p: window._ol.p,
+    type: type,
+    seq: nextOnlineSeqDesktop()
+  }, extra || {});
+  NetworkService.sendAction(payload);
 }
 
 function olSendActionDesktop(actionType) {

@@ -605,6 +605,78 @@
     }
 
     /* SPゲームボード（Feature F: inline style のクラス化） */
+
+    /* 長押しテキスト選択・コールアウト防止 */
+    .mg-root,
+    .mg-card-chip,
+    .mg-hand-row,
+    .mg-card-grid,
+    .mg-zone-section,
+    .mg-ribbon,
+    .mg-zone-menu-sheet {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* 手札スタック表示（左にずらして重なって見える） */
+    .mg-card-chip.stacked {
+      position: relative;
+    }
+
+    .mg-hand-stack-layer {
+      position: absolute;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 4px;
+      background: inherit;
+      border: inherit;
+    }
+
+    .mg-hand-stack-count {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      background: #b37a4c;
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 1px 4px;
+      border-radius: 8px;
+      line-height: 1.4;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* ゲームログ */
+    .mg-game-log {
+      margin-top: 8px;
+      padding: 6px 8px;
+      background: rgba(0,0,0,0.06);
+      border-radius: 6px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    .mg-log-entry {
+      font-size: 0.72rem;
+      color: #5a4838;
+      padding: 2px 0;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      line-height: 1.4;
+    }
+
+    .mg-log-entry:last-child {
+      border-bottom: none;
+    }
+
+    /* アクションシートボタン追加分 */
+    .mg-sheet-btn.shield { background: #4a90d9; color: #fff; }
+    .mg-sheet-btn.deck   { background: #6b7b8a; color: #fff; }
+    .mg-sheet-btn.grave  { background: #8a5a8a; color: #fff; }
+    .mg-sheet-btn.detail { background: #6b8f8a; color: #fff; }
+
     .mg-root {
       display: flex;
       flex-direction: column;
@@ -2493,6 +2565,191 @@
       z-index: 3;
       pointer-events: none;
     }
+
+    /* Under-card peek layers */
+    .dg-card-chip.has-under,
+    .mg-card-chip.has-under {
+      position: relative;
+    }
+
+    .dg-under-peek-layer,
+    .mg-under-peek-layer {
+      position: absolute;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: inherit;
+      border: 1px solid rgba(112,84,58,0.4);
+      background: #f6efe6;
+      pointer-events: none;
+    }
+
+    .dg-under-peek-layer.fire,
+    .mg-under-peek-layer.fire { background: linear-gradient(160deg, #fff2ea 0%, #f9d8c7 100%); border-color: #d16f44; }
+    .dg-under-peek-layer.water,
+    .mg-under-peek-layer.water { background: linear-gradient(160deg, #eef5ff 0%, #cfe2fb 100%); border-color: #4f86c5; }
+    .dg-under-peek-layer.nature,
+    .mg-under-peek-layer.nature { background: linear-gradient(160deg, #eef8ee 0%, #cfe8ce 100%); border-color: #5b9a5a; }
+    .dg-under-peek-layer.light,
+    .mg-under-peek-layer.light { background: linear-gradient(160deg, #fff9e8 0%, #f7eec6 100%); border-color: #c2ad62; }
+    .dg-under-peek-layer.dark,
+    .dg-under-peek-layer.darkness,
+    .mg-under-peek-layer.dark,
+    .mg-under-peek-layer.darkness { background: linear-gradient(160deg, #f5f1fa 0%, #ddd1ea 100%); border-color: #6c5a7e; }
+
+    .dg-under-overflow,
+    .mg-under-overflow {
+      position: absolute;
+      bottom: 2px;
+      left: 2px;
+      min-width: 16px;
+      height: 14px;
+      padding: 0 3px;
+      border-radius: 8px;
+      background: rgba(58,45,33,0.82);
+      color: #fff8ed;
+      font-size: 0.58rem;
+      font-weight: 700;
+      line-height: 14px;
+      text-align: center;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    /* Under-cards modal */
+    .dm-under-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 3350;
+      display: none;
+    }
+    .dm-under-modal.open {
+      display: block;
+    }
+    .dm-under-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+    }
+    .dm-under-body {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(480px, calc(100% - 28px));
+      max-height: calc(100vh - 56px);
+      background: #fafbf9;
+      border: 1px solid #dbe1dd;
+      border-radius: 12px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.2);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .dm-under-body.mobile {
+      width: calc(100% - 20px);
+      left: 10px;
+      right: 10px;
+      top: auto;
+      bottom: 14px;
+      transform: none;
+      max-height: 72vh;
+    }
+    .dm-under-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid #e4ece4;
+      flex-shrink: 0;
+    }
+    .dm-under-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #3a2d21;
+    }
+    .dm-under-close {
+      background: none;
+      border: none;
+      font-size: 1.1rem;
+      color: #7a6a5a;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .dm-under-close:hover { background: #ede5da; }
+    .dm-under-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .dm-under-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #dfe6df;
+      background: #f4f8f4;
+    }
+    .dm-under-item.fire { border-color: #e0b09a; background: #fef4ee; }
+    .dm-under-item.water { border-color: #a9c8ee; background: #eff6ff; }
+    .dm-under-item.nature { border-color: #a8cca8; background: #f0f8f0; }
+    .dm-under-item.light { border-color: #ddd0a0; background: #fdfaf0; }
+    .dm-under-item.dark,
+    .dm-under-item.darkness { border-color: #c0aed4; background: #f6f0fa; }
+    .dm-under-item-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .dm-under-item-img {
+      width: 44px;
+      height: 62px;
+      object-fit: cover;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .dm-under-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .dm-under-item-name {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #2a1f14;
+    }
+    .dm-under-item-stats {
+      font-size: 0.72rem;
+      color: #6a5a48;
+    }
+    .dm-under-item-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 2px;
+    }
+    .dm-under-act {
+      font-size: 0.72rem;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid #c8d4c8;
+      background: #edf4ed;
+      color: #3a5a3a;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .dm-under-act:hover { background: #ddeedd; }
+    .dm-under-act.red {
+      border-color: #d4b0b0;
+      background: #f8eded;
+      color: #7a3a3a;
+    }
+    .dm-under-act.red:hover { background: #f0d8d8; }
 
     .dg-card-chip.stack-target,
     .mg-card-chip.stack-target {
@@ -5353,6 +5610,444 @@
         display: grid !important;
       }
     }
+
+    /* Hand discard modal */
+    .dm-hd-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 3400;
+      display: none;
+    }
+    .dm-hd-modal.open {
+      display: block;
+    }
+    .dm-hd-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+    }
+    .dm-hd-body {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(560px, calc(100% - 28px));
+      max-height: calc(100vh - 56px);
+      background: #fafbf9;
+      border: 1px solid #dbe1dd;
+      border-radius: 12px;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.22);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .dm-hd-body.mobile {
+      width: calc(100% - 20px);
+      left: 10px;
+      right: 10px;
+      top: auto;
+      bottom: 14px;
+      transform: none;
+      max-height: 78vh;
+    }
+    .dm-hd-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid #e4ece4;
+      flex-shrink: 0;
+    }
+    .dm-hd-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #3a2d21;
+    }
+    .dm-hd-close {
+      background: none;
+      border: none;
+      font-size: 1.1rem;
+      color: #7a6a5a;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .dm-hd-close:hover { background: #ede5da; }
+    .dm-hd-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+    .dm-hd-mode-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .dm-hd-btn {
+      width: 100%;
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: 1px solid #c8d4c8;
+      background: #edf4ed;
+      color: #2a4a2a;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      text-align: center;
+    }
+    .dm-hd-btn:hover { background: #ddeedd; }
+    .dm-hd-btn.ok { background: #7a9a7a; color: #fff; border-color: #5a7a5a; }
+    .dm-hd-btn.ok:hover { background: #5a7a5a; }
+    .dm-hd-cancel {
+      padding: 8px 20px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      background: #f0f0f0;
+      color: #555;
+      font-size: 0.82rem;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .dm-hd-cancel:hover { background: #e0e0e0; }
+    .dm-hd-card-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+      justify-content: center;
+    }
+    .dm-hd-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 80px;
+      height: 112px;
+      border-radius: 6px;
+      border: 1.5px solid #b5956b;
+      background: #f6efe6;
+      cursor: pointer;
+      padding: 0;
+      overflow: hidden;
+      transition: transform 0.1s, box-shadow 0.1s;
+      position: relative;
+    }
+    .dm-hd-card-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .dm-hd-card-text {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      padding: 4px;
+      gap: 3px;
+    }
+    .dm-hd-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+    }
+    .dm-hd-card.fire { border-color: #d16f44; background: linear-gradient(160deg, #fff2ea, #f9d8c7); }
+    .dm-hd-card.water { border-color: #4f86c5; background: linear-gradient(160deg, #eef5ff, #cfe2fb); }
+    .dm-hd-card.nature { border-color: #5b9a5a; background: linear-gradient(160deg, #eef8ee, #cfe8ce); }
+    .dm-hd-card.light { border-color: #c2ad62; background: linear-gradient(160deg, #fff9e8, #f7eec6); }
+    .dm-hd-card.dark,
+    .dm-hd-card.darkness { border-color: #6c5a7e; background: linear-gradient(160deg, #f5f1fa, #ddd1ea); }
+    .dm-hd-card-cost {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #3a2d21;
+      opacity: 0.8;
+    }
+    .dm-hd-card-name {
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: #2a1f14;
+      text-align: center;
+      line-height: 1.3;
+      word-break: break-all;
+    }
+    .dm-hd-card-power {
+      font-size: 0.62rem;
+      color: #6a5a48;
+    }
+    .dm-hd-confirm-msg {
+      font-size: 0.85rem;
+      color: #3a2d21;
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+    .dm-hd-confirm-card {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #2a1f14;
+      text-align: center;
+      padding: 10px;
+      background: #f0e8dc;
+      border-radius: 8px;
+      border: 1px solid #c8a878;
+      margin-bottom: 12px;
+    }
+    .dm-hd-confirm-btns {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+    .dm-hd-waiting {
+      text-align: center;
+      padding: 20px;
+      color: #6a5a48;
+      font-size: 0.85rem;
+    }
+
+    /* ── Mobile Landscape Game Layout ─────────────────────── */
+
+    /* Portrait warning - shown when device is portrait during battle */
+    .mg-portrait-warn {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(30,24,18,0.97);
+      color: #f6efe6;
+      font-size: 1rem;
+      font-weight: 600;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+    }
+    @media (orientation: portrait) {
+      .mg-root.ls-active .mg-portrait-warn {
+        display: flex;
+      }
+      .mg-root.ls-active .mg-ls-board,
+      .mg-root.ls-active .mg-ribbon {
+        display: none !important;
+      }
+    }
+
+    /* Root in landscape mode */
+    .mg-root.ls-active {
+      display: flex;
+      flex-direction: column;
+      width: 100vw;
+      height: 100dvh;
+      overflow: hidden;
+      background: #1e1810;
+    }
+
+    /* Board: all zone rows */
+    .mg-ls-board {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      gap: 1px;
+    }
+
+    /* Each zone row */
+    .mg-ls-row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      padding: 0 2px;
+      position: relative;
+    }
+
+    /* Zone color coding (left border) */
+    .mg-ls-row.opp-hand    { background: rgba(40,40,60,0.7); border-left: 3px solid #5a6a7a; }
+    .mg-ls-row.opp-mana    { background: rgba(30,50,60,0.7); border-left: 3px solid #4a7a8a; }
+    .mg-ls-row.opp-shield  { background: rgba(40,40,70,0.7); border-left: 3px solid #5a5a9a; }
+    .mg-ls-row.opp-bz      { background: rgba(50,35,30,0.7); border-left: 3px solid #8a5a4a; }
+    .mg-ls-row.my-bz       { background: rgba(50,35,30,0.75); border-left: 3px solid #b37a4c; }
+    .mg-ls-row.my-shield   { background: rgba(40,40,70,0.75); border-left: 3px solid #7a7acf; }
+    .mg-ls-row.my-mana     { background: rgba(30,50,60,0.75); border-left: 3px solid #4aaa8a; }
+    .mg-ls-row.my-hand     { background: rgba(30,40,50,0.85); border-left: 3px solid #6a8a9a; }
+    .mg-ls-row.my-revealed { background: rgba(80,60,20,0.75); border-left: 3px solid #d4946a; }
+
+    /* Center separator */
+    .mg-ls-sep {
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #b37a4c88, transparent);
+      flex-shrink: 0;
+    }
+
+    /* Cards scrollable area in each row */
+    .mg-ls-zone-cards {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 2px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      height: 100%;
+      padding: 2px 2px;
+      scrollbar-width: none;
+    }
+    .mg-ls-zone-cards::-webkit-scrollbar { display: none; }
+
+    /* Compact card size for landscape mobile */
+    .mg-root.ls-active .mg-card-chip {
+      width: 28px;
+      height: 40px;
+      min-width: 28px;
+      flex-shrink: 0;
+      font-size: 0.52rem;
+      border-radius: 3px;
+      padding: 1px;
+    }
+    .mg-root.ls-active .mg-card-chip .mg-card-cost  { font-size: 0.55rem; }
+    .mg-root.ls-active .mg-card-chip .mg-card-name  { font-size: 0.48rem; line-height: 1.1; }
+    .mg-root.ls-active .mg-card-chip .mg-card-power { font-size: 0.44rem; }
+    .mg-root.ls-active .mg-card-chip-img { border-radius: 2px; }
+
+    /* Back cards (opponent's face-down cards) */
+    .mg-card-chip.back {
+      background: linear-gradient(160deg, #2a3a4a, #1a2a3a);
+      border-color: #4a6a7a;
+      cursor: default;
+    }
+
+    /* Pile group (deck + graveyard) - right side of mana row */
+    .mg-pile-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-left: 4px;
+      flex-shrink: 0;
+    }
+    .mg-pile-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 19px;
+      border-radius: 3px;
+      background: rgba(60,48,36,0.85);
+      border: 1px solid #7a6a5a;
+      color: #f0e4d0;
+      font-size: 0.5rem;
+      font-weight: 700;
+      cursor: pointer;
+      line-height: 1;
+      gap: 1px;
+    }
+    .mg-pile-btn:active { background: rgba(80,64,48,0.9); }
+    .mg-pile-btn .mg-pile-label { font-size: 0.48rem; opacity: 0.8; }
+    .mg-pile-btn .mg-pile-count { font-size: 0.6rem; font-weight: 800; }
+
+    /* Revealed zone mini action buttons */
+    .mg-ls-revealed-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      flex-shrink: 0;
+    }
+    .mg-ls-rev-act {
+      font-size: 0.42rem;
+      padding: 1px 3px;
+      border-radius: 3px;
+      border: 1px solid #c8a878;
+      background: #f4e8d0;
+      color: #3a2d21;
+      cursor: pointer;
+      font-family: inherit;
+      line-height: 1.3;
+    }
+    .mg-ls-rev-act.red { border-color: #d4a0a0; background: #f8e8e8; color: #7a3a3a; }
+
+    /* Landscape ribbon - thin bottom strip */
+    .mg-root.ls-active .mg-ribbon {
+      flex-shrink: 0;
+      background: rgba(20,16,12,0.95);
+      border-top: 1px solid #4a3a2a;
+      padding: 2px 4px;
+    }
+    .mg-root.ls-active .mg-ribbon-main {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 3px;
+      flex-wrap: nowrap;
+    }
+    .mg-rbn-btn {
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid #6a5a4a;
+      background: rgba(80,64,48,0.8);
+      color: #f0e4d0;
+      font-size: 0.65rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      line-height: 1.4;
+    }
+    .mg-rbn-btn:active { background: rgba(110,88,64,0.9); }
+    .mg-rbn-btn.end { background: rgba(60,90,60,0.8); border-color: #4a7a4a; }
+    .mg-rbn-btn.guide { background: rgba(100,60,20,0.9); border-color: #d4844a; animation: mg-guide-pulse 1.2s ease-in-out infinite; }
+    @keyframes mg-guide-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(212,132,74,0); }
+      50% { box-shadow: 0 0 0 3px rgba(212,132,74,0.5); }
+    }
+    .mg-turn-badge {
+      font-size: 0.6rem;
+      padding: 2px 6px;
+      border-radius: 8px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .mg-turn-badge.mine { background: rgba(40,100,60,0.9); color: #b0f0b0; }
+    .mg-turn-badge.opp  { background: rgba(100,40,40,0.9); color: #f0b0b0; }
+    .mg-rbn-btn.log { background: rgba(40,60,80,0.8); border-color: #4a7a9a; }
+
+    /* Ribbon extra (expanded) */
+    .mg-root.ls-active .mg-ribbon-extra {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      padding: 3px 0 2px;
+      border-top: 1px solid #3a2a1a;
+      margin-top: 2px;
+    }
+
+    /* Game log overlay */
+    .mg-log-overlay {
+      display: none;
+      position: fixed;
+      bottom: 46px;
+      right: 4px;
+      width: 200px;
+      max-height: 160px;
+      overflow-y: auto;
+      background: rgba(20,16,12,0.95);
+      border: 1px solid #4a3a2a;
+      border-radius: 6px;
+      padding: 6px 8px;
+      z-index: 2500;
+    }
+    .mg-log-overlay.open { display: block; }
+    .mg-log-overlay .mg-log-entry {
+      font-size: 0.62rem;
+      color: #c0b0a0;
+      line-height: 1.5;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding-bottom: 2px;
+      margin-bottom: 2px;
+    }
   </style>
 </head>
 <body>
@@ -5449,12 +6144,21 @@
     // SessionStorageからアカウント復元
     const account = AuthService.loadAccount();
 
-    if (account) {
-      // ログイン済み → ゲームUI表示
+    if (account && account.isGuest) {
+      // ゲスト → そのまま起動
+      await showGameUI(account);
+    } else if (account && !account.needsReauth) {
+      // ログイン済み（メモリにPINあり） → そのまま起動
       await showGameUI(account);
     } else {
-      // 未ログイン → 認証画面表示
+      // 未ログイン or リロードでPIN消失 → 認証画面
       showAuthUI();
+      // ユーザー名が分かる場合はログインフォームに自動入力
+      if (account && account.username) {
+        const usernameInput = document.getElementById('login-username');
+        if (usernameInput) usernameInput.value = account.username;
+        switchAuthTab('login');
+      }
     }
   }
 
@@ -5624,6 +6328,143 @@
   // ページ読み込み時初期化
   window.addEventListener('load', init);
 </script>
+
+  <!-- Under-cards modal -->
+  <div class="dm-under-modal" id="dmUnderModal" role="dialog" aria-modal="true">
+    <div class="dm-under-backdrop" onclick="closeUnderCardsModal()"></div>
+    <div class="dm-under-body" id="dmUnderBody">
+      <div class="dm-under-header">
+        <div id="dmUnderTitle" class="dm-under-title">下に重なったカード</div>
+        <button class="dm-under-close" onclick="closeUnderCardsModal()">&#x2715;</button>
+      </div>
+      <div class="dm-under-list" id="dmUnderList"></div>
+    </div>
+  </div>
+
+  <script>
+// Under-cards modal shared state and helpers
+window._underModalState = null;
+
+function getCardCivClassShared(card) {
+  const c = String(card?.civilization || card?.civ || '').toLowerCase();
+  if (c.includes('fire') || c.includes('火')) return 'fire';
+  if (c.includes('water') || c.includes('水')) return 'water';
+  if (c.includes('light') || c.includes('光')) return 'light';
+  if (c.includes('darkness') || c.includes('dark') || c.includes('闇')) return 'dark';
+  if (c.includes('nature') || c.includes('自然')) return 'nature';
+  return 'multi';
+}
+
+function escapeHtmlShared(str) {
+  return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function closeUnderCardsModal() {
+  const el = document.getElementById('dmUnderModal');
+  if (el) el.classList.remove('open');
+  window._underModalState = null;
+}
+
+function renderUnderCardsModal() {
+  const state = window._underModalState;
+  if (!state) return;
+  const eng = state.isMobile ? window.engineMobile : window.engine;
+  const topCard = eng?.state?.[state.zone]?.[state.idx];
+  if (!topCard || !Array.isArray(topCard.underCards)) { closeUnderCardsModal(); return; }
+  const under = topCard.underCards;
+
+  const titleEl = document.getElementById('dmUnderTitle');
+  if (titleEl) titleEl.textContent = `下に重なったカード (${under.length}枚)`;
+
+  const listEl = document.getElementById('dmUnderList');
+  if (!listEl) return;
+  const getImgUrl = state.isMobile
+    ? (c) => (typeof getMobileCardImageUrl === 'function' ? getMobileCardImageUrl(c) : '')
+    : (c) => (typeof getDesktopCardImageUrl === 'function' ? getDesktopCardImageUrl(c) : '');
+
+  listEl.innerHTML = under.map((uc, i) => {
+    const civ = getCardCivClassShared(uc);
+    const name = escapeHtmlShared(uc?.name || 'CARD');
+    const cost = uc?.cost ?? '-';
+    const power = uc?.power || '';
+    const imgUrl = getImgUrl(uc) || '';
+    return `<div class="dm-under-item ${civ}">
+      <div class="dm-under-item-row">
+        ${imgUrl ? `<img src="${escapeHtmlShared(imgUrl)}" alt="${name}" class="dm-under-item-img">` : ''}
+        <div class="dm-under-item-info">
+          <div class="dm-under-item-name">${name}</div>
+          ${power ? `<div class="dm-under-item-stats">コスト${cost} / P${power}</div>` : `<div class="dm-under-item-stats">コスト${cost}</div>`}
+        </div>
+      </div>
+      <div class="dm-under-item-actions">
+        <button class="dm-under-act" onclick="moveFromUnderModal(${i},'hand')">手札へ</button>
+        <button class="dm-under-act" onclick="moveFromUnderModal(${i},'manaZone')">マナへ</button>
+        <button class="dm-under-act" onclick="moveFromUnderModal(${i},'battleZone')">BZへ</button>
+        <button class="dm-under-act" onclick="moveFromUnderModal(${i},'deck','top')">デッキトップへ</button>
+        <button class="dm-under-act red" onclick="moveFromUnderModal(${i},'graveyard')">墓地へ</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function moveFromUnderModal(underIdx, toZone, position) {
+  const state = window._underModalState;
+  if (!state) return;
+  const eng = state.isMobile ? window.engineMobile : window.engine;
+  const { zone, idx } = state;
+
+  const topCard = eng?.state?.[zone]?.[idx];
+  if (!topCard || !Array.isArray(topCard.underCards) || underIdx < 0 || underIdx >= topCard.underCards.length) return;
+
+  if (typeof eng._saveState === 'function') eng._saveState();
+  const removed = topCard.underCards.splice(underIdx, 1);
+  if (!removed.length) return;
+  const card = removed[0];
+
+  const pos = position || 'top';
+  if (!eng.state[toZone]) eng.state[toZone] = [];
+  if (toZone === 'deck') {
+    if (pos === 'bottom') eng.state[toZone].unshift(card);
+    else eng.state[toZone].push(card);
+  } else if ((toZone === 'battleZone' || toZone === 'graveyard') && pos === 'bottom') {
+    eng.state[toZone].unshift(card);
+  } else {
+    eng.state[toZone].push(card);
+  }
+
+  if (state.isMobile) {
+    if (window._ol && typeof olSendActionMobile === 'function') olSendActionMobile('state');
+    if (typeof renderMobileGame === 'function') renderMobileGame();
+  } else {
+    if (window._ol && typeof olSendActionDesktop === 'function') olSendActionDesktop('state');
+    if (typeof renderDesktopGame === 'function') renderDesktopGame();
+  }
+
+  const remaining = eng?.state?.[zone]?.[idx]?.underCards;
+  if (!Array.isArray(remaining) || !remaining.length) {
+    closeUnderCardsModal();
+  } else {
+    renderUnderCardsModal();
+  }
+}
+
+function closeHandDiscardModal() {
+  const el = document.getElementById('dmHandDiscardModal');
+  if (el) el.classList.remove('open');
+}
+  </script>
+
+  <!-- Hand discard modal -->
+  <div class="dm-hd-modal" id="dmHandDiscardModal" role="dialog" aria-modal="true">
+    <div class="dm-hd-backdrop" onclick="closeHandDiscardModal()"></div>
+    <div class="dm-hd-body" id="dmHandDiscardBody">
+      <div class="dm-hd-header">
+        <div id="dmHandDiscardTitle" class="dm-hd-title">ハンデス</div>
+        <button class="dm-hd-close" onclick="closeHandDiscardModal()">&#x2715;</button>
+      </div>
+      <div class="dm-hd-content" id="dmHandDiscardContent"></div>
+    </div>
+  </div>
 
 </body>
 </html>

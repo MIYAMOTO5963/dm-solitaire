@@ -512,7 +512,7 @@ const NetworkService = {
 
     const normalized = deck.map(card => this.normalizeCardData(card));
     this._deckCache.set(cacheKey, {
-      items: normalized.map((card) => this.normalizeCardData(card)),
+      items: normalized,
       at: Date.now()
     });
 
@@ -544,7 +544,8 @@ const NetworkService = {
         signal: this._abortSignal(10000)
       });
 
-      const data = await res.json();
+      let data = {};
+      try { data = await res.json(); } catch { /* ignore non-JSON error body */ }
       if (!res.ok) {
         return { error: data.error || 'クラウド保存に失敗しました' };
       }
@@ -628,7 +629,8 @@ const NetworkService = {
         return { cards: [], total: 0, page: pageNumber };
       }
 
-      const data = await res.json();
+      let data = {};
+      try { data = await res.json(); } catch { return { cards: [], total: 0, page: pageNumber }; }
       const cards = Array.isArray(data.cards) ? data.cards : [];
       const normalized = cards.map(card => this.normalizeCardData(card));
       const total = Number(data.total);
@@ -712,7 +714,7 @@ const NetworkService = {
         if (res.status === 404 && attempt < maxRetries) {
           // Room create/join calls can land on different instances in some deployments.
           // Retry briefly to increase the chance of reaching the room owner instance.
-          await this._wait(300 * (attempt + 1));
+          await this._wait(1000 * (attempt + 1));
           continue;
         }
 
@@ -720,7 +722,7 @@ const NetworkService = {
       } catch (error) {
         lastError = error;
         if (attempt < maxRetries) {
-          await this._wait(300 * (attempt + 1));
+          await this._wait(1000 * (attempt + 1));
           continue;
         }
       }
@@ -793,12 +795,20 @@ const NetworkService = {
    * @returns {Promise<boolean>}
    */
   async sendChat(room, p, message) {
-    const base = this.getApiBase();
-    const res = await fetch(`${base}/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ room, p, message: String(message).slice(0, 200) })
-    });
-    return res.ok;
+    try {
+      const base = this.getApiBase();
+      const res = await fetch(`${base}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room, p, message: String(message).slice(0, 200) }),
+        signal: this._abortSignal(8000)
+      });
+      return res.ok;
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        console.warn('sendChat通信エラー:', error);
+      }
+      return false;
+    }
   }
 };
