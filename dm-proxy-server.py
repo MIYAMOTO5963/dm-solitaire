@@ -1063,40 +1063,15 @@ def _official_ids_from_set_and_print(set_code: str, print_code: str) -> list[str
         return []
 
     prefix = sc.replace("-", "").lower()
-    out: list[str] = []
-    seen: set[str] = set()
-
-    def _add(v: str):
-        s = str(v or "").strip()
-        if not s or s in seen:
-            return
-        seen.add(s)
-        out.append(s)
-
-    _add(f"{prefix}-{pc}")
-
+    # Use one canonical form per print code to avoid duplicate IDs like
+    # 1S/01S/001S or KM1/KM01/KM001 in illustration candidates.
     if pc.startswith("P") and pc[1:].isdigit():
-        _add(f"{prefix}-{int(pc[1:]):03d}")
-    elif pc.isdigit():
-        _add(f"{prefix}-{int(pc):03d}")
+        return [f"{prefix}-{int(pc[1:]):03d}"]
 
-    m_digit_suffix = re.fullmatch(r"(\d+)([A-Z])", pc)
-    if m_digit_suffix:
-        number = int(m_digit_suffix.group(1))
-        suffix = m_digit_suffix.group(2)
-        _add(f"{prefix}-{number}{suffix}")
-        _add(f"{prefix}-{number:02d}{suffix}")
-        _add(f"{prefix}-{number:03d}{suffix}")
+    if pc.isdigit():
+        return [f"{prefix}-{int(pc):03d}"]
 
-    m_head_digits = re.fullmatch(r"([A-Z]+)(\d+)", pc)
-    if m_head_digits:
-        head = m_head_digits.group(1)
-        number = int(m_head_digits.group(2))
-        _add(f"{prefix}-{head}{number}")
-        _add(f"{prefix}-{head}{number:02d}")
-        _add(f"{prefix}-{head}{number:03d}")
-
-    return out
+    return [f"{prefix}-{pc}"]
 
 
 def _official_art_variants_from_dmwiki(card_name: str, limit: int = 12) -> list[dict]:
