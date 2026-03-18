@@ -118,7 +118,7 @@ const NetworkService = {
     const cachedEntry = this._cardDetailCache.get(cacheKey);
     if (cachedEntry && typeof cachedEntry === 'object' && Object.prototype.hasOwnProperty.call(cachedEntry, 'data')) {
       const ttl = cachedEntry?.hasImage ? this._cardDetailCacheTtlMs : this._cardDetailNoImageCacheTtlMs;
-      if ((Date.now() - Number(cachedEntry?.at || 0)) < ttl) {
+      if (Number.isFinite(cachedEntry?.at) && (Date.now() - cachedEntry.at) < ttl) {
         return cachedEntry.data;
       }
       this._cardDetailCache.delete(cacheKey);
@@ -483,7 +483,7 @@ const NetworkService = {
   async fetchServerDeck(username, pin, deckName) {
     const cacheKey = this._deckCacheKey(username, deckName);
     const cached = this._deckCache.get(cacheKey);
-    if (cached && (Date.now() - cached.at) < this._deckCacheTtlMs) {
+    if (cached && Number.isFinite(cached.at) && (Date.now() - cached.at) < this._deckCacheTtlMs) {
       return cached.items.map((card) => this.normalizeCardData(card));
     }
 

@@ -1334,15 +1334,20 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "invalid p"}, 400)
             op = "p2" if p == "p1" else "p1"
             _TRANSIENT = {"hand_reveal_request", "hand_data", "discard_select", "discard_random"}
+            # Allowlist: only relay known fields to prevent arbitrary data passthrough
+            _ALLOWED_STATE_FIELDS = {"room", "p", "type", "seq", "turn", "active", "p1", "p2"}
+            _ALLOWED_TRANSIENT_FIELDS = {"room", "p", "type", "seq", "cardName", "random", "cards"}
+            allowed = _ALLOWED_TRANSIENT_FIELDS if atype in _TRANSIENT else _ALLOWED_STATE_FIELDS
+            clean_data = {k: v for k, v in data.items() if k in allowed}
             with room['lock']:
                 if atype not in _TRANSIENT:
-                    room[p]['pub'] = data
+                    room[p]['pub'] = clean_data
                 if atype == "turn_end":
-                    _push_event(room, op, "turn_end", data)
+                    _push_event(room, op, "turn_end", clean_data)
                 elif atype in _TRANSIENT:
-                    _push_event(room, op, atype, data)
+                    _push_event(room, op, atype, clean_data)
                 else:
-                    _push_event(room, op, "opponent_state", data)
+                    _push_event(room, op, "opponent_state", clean_data)
             self._json({"ok": True})
 
         # POST /chat  { room, p, message }
@@ -1554,9 +1559,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Accel-Buffering", "no")
         self._cors()
         self.end_headers()
-        # If opponent already sent state, push it immediately
+        # Send opponent's last-known state only when queue is empty (reconnect with no queued events).
+        # If the queue already has events they include the latest state in chronological order.
         op = "p2" if p == "p1" else "p1"
-        if room[op]['pub']:
+        if room[op]['pub'] and room[p]['q'].empty():
             self._sse_write("opponent_state", room[op]['pub'])
         q = room[p]['q']
         try:
