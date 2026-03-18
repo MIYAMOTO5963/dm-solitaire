@@ -1483,110 +1483,139 @@ function renderDesktopGame() {
   const graveTopImage = getDesktopCardImageUrl(graveTopCard);
 
   container.innerHTML = `
-    <div class="dg-full-root">
-      <div class="dg-full-header ${headerTurnClass}">
-        <div class="dg-full-head-meta">
-          <div class="dg-turn-pill">ターン <b>${state.turn}</b> | 手札 <b>${state.hand.length}</b> | マナ <b>${state.manaZone.length}</b></div>
+    <div class="dg-full-root dg-v2">
+      <div class="dg-v2-header ${headerTurnClass}">
+        <div class="dg-v2-head-left">
+          <div class="dg-turn-pill">T<b>${state.turn}</b> 手<b>${state.hand.length}</b> マナ<b>${state.manaZone.length}</b></div>
           ${ol ? `<div class="dg-full-state ${isMyTurn ? 'mine' : 'opponent'}">${isMyTurn ? 'あなたのターン' : '相手のターン'}</div>` : '<div class="dg-full-state solo">一人回し</div>'}
-          ${ol ? `<div class="dg-full-match">${escapeHtml(ol.p1Name)} vs ${ol.p2Name ? escapeHtml(ol.p2Name) : '待機中'}</div>` : '<div class="dg-full-match">一人回しモード</div>'}
+          ${ol ? `<span class="dg-v2-match">${escapeHtml(myName)} vs ${escapeHtml(oppName)}</span>` : ''}
         </div>
-        <div class="dg-full-head-actions">
+        <div class="dg-v2-head-actions">
           <button onclick="drawDesktopCard()" class="dg-btn draw ${_desktopNeedDrawGuide ? 'guide' : ''}">ドロー</button>
-          <button onclick="turnDesktopEnd()" class="dg-btn end">ターン終了（相手にパス）</button>
-          <button onclick="moveDesktopDeckTopTo('manaZone')" class="dg-btn deck-mana">トップ→マナ</button>
-          <button onclick="moveDesktopDeckTopTo('graveyard')" class="dg-btn deck-grave">トップ→墓地</button>
-          <button onclick="moveDesktopDeckTopTo('shields')" class="dg-btn deck-shield">トップ→シールド</button>
+          <button onclick="turnDesktopEnd()" class="dg-btn end">ターン終了</button>
+          <button onclick="moveDesktopDeckTopTo('manaZone')" class="dg-btn deck-mana">→マナ</button>
+          <button onclick="moveDesktopDeckTopTo('graveyard')" class="dg-btn deck-grave">→墓地</button>
+          <button onclick="moveDesktopDeckTopTo('shields')" class="dg-btn deck-shield">→シールド</button>
           <div class="dg-n-control">
             <span class="dg-n-label">n</span>
-            <input
-              type="number"
-              id="desktop-deck-n-input"
-              class="dg-n-input"
-              min="1"
-              max="40"
-              value="${_desktopDeckNValue}"
-              oninput="setDesktopDeckNValue(this.value)">
+            <input type="number" id="desktop-deck-n-input" class="dg-n-input" min="1" max="40" value="${_desktopDeckNValue}" oninput="setDesktopDeckNValue(this.value)">
           </div>
-          <button onclick="drawDesktopDeckCardsToPublic()" class="dg-btn deck-reveal">山札からn枚表向き</button>
-          <button onclick="drawDesktopDeckCardsToPrivate()" class="dg-btn deck-peek">山札からn枚見る</button>
-          <button onclick="openDesktopDeckAllModal()" class="dg-btn deck-all">山札を全部見る</button>
-          <button onclick="untapAllDesktopMana()" class="dg-btn mana-untap">マナ全アンタップ</button>
+          <button onclick="drawDesktopDeckCardsToPublic()" class="dg-btn deck-reveal">n枚表向き</button>
+          <button onclick="drawDesktopDeckCardsToPrivate()" class="dg-btn deck-peek">n枚見る</button>
+          <button onclick="openDesktopDeckAllModal()" class="dg-btn deck-all">全部見る</button>
+          <button onclick="untapAllDesktopMana()" class="dg-btn mana-untap">全アンタップ</button>
           ${!window._ol ? `<button onclick="undoDesktopGame()" class="dg-btn undo">やり直し</button>` : ''}
           <button onclick="renderDesktopDeckList()" class="dg-btn back">戻る</button>
         </div>
       </div>
 
-      <div class="dg-full-body ${ol ? 'online' : 'solo'}">
-        <div class="dg-full-board">
-          ${ol ? `<div class="dg-opp-wrap">
-            <div class="dg-opp-title">相手エリア: ${escapeHtml(oppName)}</div>
-            <div class="dg-opp-grid">
-              <div class="dg-opp-panel">
-                <div class="dg-opp-label">手札 (${Number(opp.hand ?? 0)}) ${window._ol ? `<button class="dg-handdiscard-btn" onclick="openDesktopHandDiscardMenu()" title="ハンデス">ハンデス</button>` : ''}</div>
-                ${renderDesktopBackCards(Number(opp.hand ?? 0))}
-              </div>
-              <div class="dg-opp-panel">
-                <div class="dg-opp-label">シールド (${Number(opp.shields ?? 0)})</div>
-                ${renderDesktopBackCards(Number(opp.shields ?? 0), 'shield')}
-              </div>
-              <div class="dg-opp-panel">
-                <div class="dg-opp-label">表向き公開 (${getZoneCount(opp.deckRevealZone)})</div>
-                ${renderOpponentPublicZone(opp.deckRevealZone, 'revealed')}
-              </div>
-              <div class="dg-opp-panel">
-                <div class="dg-opp-label">公開中 (${getZoneCount(opp.revealedZone)})</div>
-                ${renderOpponentPublicZone(opp.revealedZone, 'revealed')}
-              </div>
-              <div class="dg-opp-panel">
-                <div class="dg-opp-label">バトル (${getZoneCount(opp.battleZone)})</div>
-                ${renderOpponentPublicZone(opp.battleZone, 'battle')}
-              </div>
-              <div class="dg-opp-panel">
-                <div class="dg-opp-label">マナ (${getZoneCount(opp.manaZone)})</div>
-                ${renderOpponentPublicZone(opp.manaZone, 'mana')}
-              </div>
-            </div>
-            <div class="dg-opp-panel dg-opp-grave">
-              <div class="dg-opp-label">墓地 (${getZoneCount(opp.graveyard)})</div>
-              ${renderOpponentPublicZone(opp.graveyard, 'grave')}
-            </div>
-          </div>` : ''}
+      <div class="dg-v2-body">
+        <div class="dg-v2-board">
+          ${_desktopUnderInsertState ? '<div class="dg-v2-hint">重ね先を選択: バトル/マナ/シールドのカードをクリック</div>' : ''}
 
-          <div class="dg-me-wrap">
-            <div class="dg-me-title">自分エリア: ${escapeHtml(myName)}</div>
-            <div class="dg-pile-row">
-              <button
-                type="button"
-                class="dg-pile-btn deck"
-                onclick="openDesktopDeckTopMenu(event)"
-                oncontextmenu="openDesktopDeckTopMenu(event)"
-                title="山札トップの操作">
-                <span class="dg-pile-label">山札</span>
-                ${hasDeckCard
-                  ? '<span class="dg-pile-empty">TOP</span>'
-                  : '<span class="dg-pile-empty">空</span>'}
-                <span class="dg-pile-count">${state.deck.length}</span>
-              </button>
-
-              <button
-                type="button"
-                class="dg-pile-btn grave ${graveTopImage ? 'has-image' : ''}"
-                onclick="openDesktopGraveyardModal()"
-                ${state.graveyard.length ? `oncontextmenu="openDesktopCardZoneMenu(event, 'graveyard', ${graveTopIndex})"` : ''}
-                title="墓地を表示">
-                <span class="dg-pile-label">墓地</span>
-                ${graveTopImage
-                  ? `<img src="${escapeHtml(graveTopImage)}" alt="墓地トップ" class="dg-pile-thumb" loading="lazy" decoding="async" onerror="handleDesktopCardImageError(this)">`
-                  : '<span class="dg-pile-empty">空</span>'}
-                <span class="dg-pile-count">${state.graveyard.length}</span>
-              </button>
+          ${ol ? `
+          <div class="dg-v2-row opp-hand">
+            <span class="dg-v2-label">手札<br><b>${Number(opp.hand ?? 0)}</b></span>
+            <div class="dg-v2-cards">
+              ${renderDesktopBackCards(Number(opp.hand ?? 0))}
             </div>
-            ${_desktopUnderInsertState ? '<div class="dg-zone-hint">重ね先を選択中: バトル/マナ/シールドのカードをクリック</div>' : ''}
+            <div class="dg-v2-row-side">
+              <button class="dg-handdiscard-btn" onclick="openDesktopHandDiscardMenu()" title="ハンデス">ハンデス</button>
+            </div>
           </div>
 
-          <div class="dg-section">
-            <strong class="dg-zone-title">手札 (${state.hand.length})</strong>
-            <div id="desktop-hand-zone" class="dg-hand-zone">
+          <div class="dg-v2-row opp-mana">
+            <span class="dg-v2-label">マナ<br><b>${getZoneCount(opp.manaZone)}</b></span>
+            <div class="dg-v2-cards">
+              ${renderOpponentPublicZone(opp.manaZone, 'mana')}
+            </div>
+            <div class="dg-v2-pile-col opp">
+              <div class="dg-v2-opp-pile">
+                <span class="dg-v2-pile-name">山札</span>
+                <span class="dg-v2-pile-cnt">${getZoneCount(opp.deck ?? 0)}</span>
+              </div>
+              <div class="dg-v2-opp-pile">
+                <span class="dg-v2-pile-name">墓地</span>
+                <span class="dg-v2-pile-cnt">${getZoneCount(opp.graveyard ?? 0)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="dg-v2-row opp-shield">
+            <span class="dg-v2-label">シールド<br><b>${Number(opp.shields ?? 0)}</b></span>
+            <div class="dg-v2-cards">
+              ${renderDesktopBackCards(Number(opp.shields ?? 0), 'shield')}
+            </div>
+          </div>
+
+          <div class="dg-v2-row opp-battle">
+            <span class="dg-v2-label">バトル<br><b>${getZoneCount(opp.battleZone)}</b></span>
+            <div class="dg-v2-cards">
+              ${renderOpponentPublicZone(opp.battleZone, 'battle')}
+            </div>
+          </div>
+
+          <div class="dg-v2-sep"></div>
+          ` : ''}
+
+          <div class="dg-v2-row my-battle">
+            <span class="dg-v2-label">バトル<br><b>${state.battleZone.length}</b></span>
+            <div id="desktop-battle-zone" class="dg-v2-cards" ondrop="dropDesktopCard(event, 'battle')" ondragover="dragDesktopOver(event)">
+              ${state.battleZone.length ? state.battleZone.map((c, i) => renderChip(c, 'battle', i)).join('') : '<div class="dg-zone-empty">空</div>'}
+            </div>
+          </div>
+
+          <div class="dg-v2-row my-shield">
+            <span class="dg-v2-label">シールド<br><b>${state.shields.length}</b></span>
+            <div class="dg-v2-cards">
+              ${state.shields.length ? state.shields.map((c, i) => {
+                const civ = getDesktopCardCivClass(c);
+                const imageUrl = getDesktopCardImageUrl(c);
+                const shortName = getDesktopCardShortName(c?.name || '', 9);
+                const underCount = getDesktopUnderCardCount(c);
+                return `
+                  <div class="dg-card-chip shield ${civ} ${c?.faceUp ? 'faceup' : ''} ${imageUrl && c?.faceUp ? 'has-image' : ''} ${underCount > 0 ? 'has-under' : ''} ${_desktopSelectedShieldIdx === i ? 'selected' : ''} ${_desktopUnderInsertState ? 'stack-target' : ''}"
+                    onclick="onDesktopShieldCardClick(${i})"
+                    oncontextmenu="openDesktopCardZoneMenu(event, 'shields', ${i})"
+                    title="${escapeHtml(c?.faceUp ? (c.name || 'シールド') : 'シールド')}"
+                    data-zone="shields" data-index="${i}">
+                    ${underCount > 0 ? `<div class="dg-under-stack" aria-hidden="true">${renderDesktopUnderLayers(underCount)}</div><div class="dg-under-count">+${underCount}</div>` : ''}
+                    ${c?.faceUp
+                      ? (imageUrl
+                        ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(c.name || 'SHIELD')}" class="dg-card-chip-img" loading="lazy" decoding="async" onerror="handleDesktopCardImageError(this)">`
+                        : `<div class="dg-card-name">${escapeHtml(shortName || 'SH')}</div>`)
+                      : 'SH'}
+                  </div>
+                `;
+              }).join('') : '<div class="dg-zone-empty">空</div>'}
+            </div>
+          </div>
+
+          <div class="dg-v2-row my-mana">
+            <span class="dg-v2-label">マナ<br><b>${state.manaZone.length}</b></span>
+            <div id="desktop-mana-zone" class="dg-v2-cards" ondrop="dropDesktopCard(event, 'mana')" ondragover="dragDesktopOver(event)">
+              ${state.manaZone.length ? state.manaZone.map((c, i) => renderChip(c, 'mana', i)).join('') : '<div class="dg-zone-empty">空</div>'}
+            </div>
+            <div class="dg-v2-pile-col my">
+              <button type="button" class="dg-v2-pile-btn deck"
+                onclick="openDesktopDeckTopMenu(event)" oncontextmenu="openDesktopDeckTopMenu(event)" title="山札">
+                <span class="dg-v2-pile-name">山札</span>
+                <span class="dg-v2-pile-cnt">${state.deck.length}</span>
+              </button>
+              <button type="button" class="dg-v2-pile-btn grave ${graveTopImage ? 'has-image' : ''}"
+                onclick="openDesktopGraveyardModal()"
+                ${state.graveyard.length ? `oncontextmenu="openDesktopCardZoneMenu(event, 'graveyard', ${graveTopIndex})"` : ''}
+                title="墓地">
+                ${graveTopImage ? `<img src="${escapeHtml(graveTopImage)}" alt="墓地トップ" class="dg-v2-pile-thumb" loading="lazy" decoding="async" onerror="handleDesktopCardImageError(this)">` : ''}
+                <span class="dg-v2-pile-name">墓地</span>
+                <span class="dg-v2-pile-cnt">${state.graveyard.length}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="dg-v2-row my-hand">
+            <span class="dg-v2-label">手札<br><b>${state.hand.length}</b></span>
+            <div id="desktop-hand-zone" class="dg-v2-cards">
               ${state.hand.length ? state.hand.map((c, i) => {
                 const civ = getDesktopCardCivClass(c);
                 const cost = Number.isFinite(Number(c?.cost)) ? Number(c.cost) : '-';
@@ -1608,80 +1637,42 @@ function renderDesktopGame() {
                     <div class="dg-card-power">${escapeHtml(power)}</div>`}
                   </div>
                 `;
-              }).join('') : '<div class="dg-zone-empty">カードなし</div>'}
-            </div>
-            <div id="desktop-card-preview" class="dg-preview">
-              <div id="desktop-preview-content"></div>
+              }).join('') : '<div class="dg-zone-empty">空</div>'}
             </div>
           </div>
 
-          <div class="dg-section">
-            <strong class="dg-zone-title">バトル (${state.battleZone.length})</strong>
-            <div id="desktop-battle-zone" ondrop="dropDesktopCard(event, 'battle')" ondragover="dragDesktopOver(event)" class="dg-play-zone battle">
-              ${state.battleZone.length ? state.battleZone.map((c, i) => renderChip(c, 'battle', i)).join('') : '<div class="dg-zone-empty">カードなし</div>'}
-            </div>
-          </div>
-
-          <div class="dg-section">
-            <strong class="dg-zone-title">マナ (${state.manaZone.length})</strong>
-            <div id="desktop-mana-zone" ondrop="dropDesktopCard(event, 'mana')" ondragover="dragDesktopOver(event)" class="dg-play-zone mana">
-              ${state.manaZone.length ? state.manaZone.map((c, i) => renderChip(c, 'mana', i)).join('') : '<div class="dg-zone-empty">カードなし</div>'}
-            </div>
-          </div>
-
-          <div class="dg-section">
-            <strong class="dg-zone-title">シールド (${state.shields.length})</strong>
-            <div class="dg-shield-zone">
-              ${state.shields.length ? state.shields.map((c, i) => {
-                const civ = getDesktopCardCivClass(c);
-                const imageUrl = getDesktopCardImageUrl(c);
-                const shortName = getDesktopCardShortName(c?.name || '', 9);
-                const underCount = getDesktopUnderCardCount(c);
-                return `
-                  <div class="dg-card-chip shield ${civ} ${c?.faceUp ? 'faceup' : ''} ${imageUrl && c?.faceUp ? 'has-image' : ''} ${underCount > 0 ? 'has-under' : ''} ${_desktopSelectedShieldIdx === i ? 'selected' : ''} ${_desktopUnderInsertState ? 'stack-target' : ''}"
-                    onclick="onDesktopShieldCardClick(${i})"
-                    oncontextmenu="openDesktopCardZoneMenu(event, 'shields', ${i})"
-                    title="${escapeHtml(c?.faceUp ? (c.name || 'シールド') : 'シールド')}"
-                    data-zone="shields"
-                    data-index="${i}">
-                    ${underCount > 0 ? `<div class="dg-under-stack" aria-hidden="true">${renderDesktopUnderLayers(underCount)}</div><div class="dg-under-count">+${underCount}</div>` : ''}
-                    ${c?.faceUp
-                      ? (imageUrl
-                        ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(c.name || 'SHIELD')}" class="dg-card-chip-img" loading="lazy" decoding="async" onerror="handleDesktopCardImageError(this)">`
-                        : `<div class="dg-card-name">${escapeHtml(shortName || 'SH')}</div>`)
-                      : 'SH'}
-                  </div>
-                `;
-              }).join('') : '<div class="dg-zone-empty">カードなし</div>'}
-            </div>
-          </div>
-
-          <div class="dg-section">
-            <strong class="dg-zone-title">公開中 (S・トリガー判定) (${revealedZoneCards.length})</strong>
-            <div class="dg-revealed-zone">
-              ${revealedZoneCards.length ? revealedZoneCards.map((c, i) => `
+          ${revealedZoneCards.length ? `
+          <div class="dg-v2-row my-revealed">
+            <span class="dg-v2-label">公開<br><b>${revealedZoneCards.length}</b></span>
+            <div class="dg-v2-cards">
+              ${revealedZoneCards.map((c, i) => `
                 <div class="dg-revealed-item">
                   ${renderChip(c, 'revealed', i)}
                   <div class="dg-revealed-actions">
-                    <button type="button" class="dg-revealed-btn hand" onclick="resolveDesktopRevealedToHand(${i})">手札に加える</button>
-                    <button type="button" class="dg-revealed-btn trigger" onclick="useDesktopRevealedAsTrigger(${i})">トリガー使用</button>
+                    <button type="button" class="dg-revealed-btn hand" onclick="resolveDesktopRevealedToHand(${i})">手札へ</button>
+                    <button type="button" class="dg-revealed-btn trigger" onclick="useDesktopRevealedAsTrigger(${i})">トリガー</button>
                   </div>
                 </div>
-              `).join('') : '<div class="dg-zone-empty">公開カードなし</div>'}
+              `).join('')}
             </div>
           </div>
+          ` : ''}
         </div>
 
         ${ol ? `
-          <div class="dg-full-chat">
+          <div class="dg-v2-chat">
             <div class="dg-chat-title">チャット</div>
             <div id="desktop-chat-messages" class="dg-chat-messages"></div>
             <div class="dg-chat-input-row">
-              <input id="desktop-chat-input" type="text" maxlength="200" placeholder="メッセージを入力" onkeydown="onDesktopChatKeyDown(event)" class="dg-chat-input">
+              <input id="desktop-chat-input" type="text" maxlength="200" placeholder="メッセージ" onkeydown="onDesktopChatKeyDown(event)" class="dg-chat-input">
               <button onclick="sendDesktopChat()" class="dg-chat-send">送信</button>
             </div>
           </div>
         ` : ''}
+      </div>
+
+      <div id="desktop-card-preview" class="dg-preview">
+        <div id="desktop-preview-content"></div>
       </div>
     </div>
   `;

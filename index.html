@@ -5591,6 +5591,290 @@
       }
     }
 
+    /* V5: desktop board row layout */
+    .dg-full-root.dg-v2 {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .dg-v2-header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-bottom: 1px solid #dcc7ad;
+      background: rgba(252, 247, 239, 0.96);
+      box-shadow: 0 2px 8px rgba(77, 52, 30, 0.09);
+      backdrop-filter: blur(6px);
+      z-index: 40;
+      flex-wrap: wrap;
+    }
+
+    .dg-v2-head-left {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+
+    .dg-v2-match {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #7a634c;
+    }
+
+    .dg-v2-head-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+      flex: 1;
+      justify-content: flex-end;
+    }
+
+    .dg-v2-head-actions .dg-btn {
+      border-radius: 6px;
+      min-height: 26px;
+      padding: 3px 7px;
+      min-width: 0;
+      font-size: 0.7rem;
+      font-weight: 700;
+      box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12);
+    }
+
+    .dg-v2-head-actions .dg-n-control {
+      min-height: 26px;
+    }
+
+    .dg-v2-body {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .dg-v2-board {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 5px 10px 5px 6px;
+      gap: 3px;
+    }
+
+    .dg-v2-hint {
+      flex-shrink: 0;
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 6px;
+      padding: 3px 10px;
+      font-size: 0.71rem;
+      font-weight: 700;
+      color: #6b5200;
+      text-align: center;
+    }
+
+    .dg-v2-row {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: stretch;
+      gap: 5px;
+    }
+
+    .dg-v2-label {
+      flex-shrink: 0;
+      width: 42px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: #7b6248;
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .dg-v2-label b {
+      font-size: 0.72rem;
+      color: #5a3e28;
+    }
+
+    .dg-v2-cards {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 4px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(160, 130, 95, 0.3) transparent;
+      padding: 3px 6px;
+      border-radius: 7px;
+      border: 1px solid rgba(197, 172, 143, 0.3);
+      box-sizing: border-box;
+      background: rgba(253, 246, 237, 0.75);
+    }
+
+    .dg-v2-row.opp-mana .dg-v2-cards,
+    .dg-v2-row.my-mana .dg-v2-cards {
+      background: rgba(238, 246, 240, 0.8);
+      border-color: rgba(148, 192, 158, 0.35);
+    }
+
+    .dg-v2-row.opp-shield .dg-v2-cards,
+    .dg-v2-row.my-shield .dg-v2-cards {
+      background: rgba(243, 240, 253, 0.8);
+      border-color: rgba(165, 152, 215, 0.35);
+    }
+
+    .dg-v2-row.opp-battle .dg-v2-cards,
+    .dg-v2-row.my-battle .dg-v2-cards {
+      background: rgba(250, 241, 234, 0.8);
+      border-color: rgba(210, 165, 130, 0.35);
+      border-style: dashed;
+    }
+
+    .dg-v2-row.my-revealed .dg-v2-cards {
+      background: rgba(255, 248, 224, 0.85);
+      border-color: rgba(210, 183, 110, 0.4);
+    }
+
+    .dg-v2-sep {
+      flex-shrink: 0;
+      height: 3px;
+      margin: 1px 0;
+      background: linear-gradient(90deg, transparent 3%, #c4ab8d 15%, #c4ab8d 85%, transparent 97%);
+      border-radius: 2px;
+    }
+
+    .dg-v2-row-side {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+    }
+
+    .dg-handdiscard-btn {
+      font-size: 0.64rem;
+      font-weight: 700;
+      padding: 3px 7px;
+      border-radius: 5px;
+      border: 1px solid #b07a5a;
+      background: #f0d8c4;
+      color: #6b3c1e;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .dg-handdiscard-btn:hover {
+      background: #e8c9ae;
+    }
+
+    /* Pile column (next to mana row) */
+    .dg-v2-pile-col {
+      flex-shrink: 0;
+      width: 64px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    /* Opponent pile: just info labels */
+    .dg-v2-opp-pile {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #dcc4a8;
+      border-radius: 6px;
+      background: rgba(248, 239, 228, 0.7);
+      gap: 1px;
+    }
+
+    /* My pile: clickable buttons */
+    .dg-v2-pile-btn {
+      flex: 1;
+      position: relative;
+      border: 1px solid #cdb08e;
+      border-radius: 7px;
+      background: linear-gradient(160deg, #f6e8d2 0%, #ecd2af 100%);
+      color: #5d4228;
+      padding: 3px 5px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      cursor: pointer;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+      transition: transform 0.1s;
+      overflow: hidden;
+      text-align: center;
+      min-height: 0;
+    }
+
+    .dg-v2-pile-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4), 0 4px 10px rgba(79, 53, 31, 0.15);
+    }
+
+    .dg-v2-pile-btn.grave {
+      background: linear-gradient(160deg, #f1e7da 0%, #ddd0bd 100%);
+    }
+
+    .dg-v2-pile-name {
+      font-size: 0.58rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #6f5439;
+    }
+
+    .dg-v2-pile-cnt {
+      font-size: 0.85rem;
+      font-weight: 800;
+      color: #5d4228;
+      line-height: 1;
+    }
+
+    .dg-v2-pile-thumb {
+      width: 30px;
+      height: 42px;
+      border-radius: 4px;
+      object-fit: cover;
+      border: 1px solid rgba(115, 85, 58, 0.3);
+    }
+
+    /* Chat sidebar */
+    .dg-v2-chat {
+      width: 220px;
+      flex-shrink: 0;
+      border-left: 1px solid #ddccb6;
+      background: rgba(251, 246, 238, 0.96);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 8px;
+      gap: 6px;
+    }
+
+    .dg-v2-chat .dg-chat-messages {
+      flex: 1;
+      min-height: 0;
+      max-height: none;
+      overflow-y: auto;
+    }
+
     @media (max-width: 768px) {
       #app-desktop {
         display: none !important;

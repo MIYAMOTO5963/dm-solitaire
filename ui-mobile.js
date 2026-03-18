@@ -36,6 +36,7 @@ let _mobileDeckRevealModalState = {
 };
 let _mobileGameLog = [];
 let _handDiscardStateMobile = null;
+let _mobileLogOpen = false;
 
 function escapeHtmlMobile(str) {
   return String(str ?? '')
@@ -626,6 +627,12 @@ function askMobileNumber(label = 'N枚', defaultValue = 3, min = 1, max = 40) {
     modal.classList.add('open');
     setTimeout(() => { input.focus(); input.select(); }, 50);
   });
+}
+
+function toggleMobileGameLog() {
+  _mobileLogOpen = !_mobileLogOpen;
+  const el = document.getElementById('mgLogOverlay');
+  if (el) el.classList.toggle('open', _mobileLogOpen);
 }
 
 function showMobileToast(message, type = 'info', timeout = 2200) {
@@ -1576,6 +1583,9 @@ function initMobileUI() {
  * 1カラムレイアウトのデッキ一覧画面
  */
 function renderMobileDeckList() {
+  if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+    try { screen.orientation.unlock(); } catch(e) {}
+  }
   closeMobileCardZoneMenu();
   closeMobileDeckRevealModal();
   closeMobileDeckAllModal();
@@ -1996,6 +2006,9 @@ async function startMobileGame(deckName) {
   closeMobileCardZoneMenu();
   closeMobileDeckRevealModal();
   closeMobileDeckAllModal();
+  if (screen.orientation && typeof screen.orientation.lock === 'function') {
+    screen.orientation.lock('landscape').catch(() => {});
+  }
   renderMobileGame();
 }
 
@@ -2113,257 +2126,217 @@ function renderMobileGame() {
     `;
   };
   
+  // Build HTML sections
+  const myNum = window._ol?.p === 'p1' ? 1 : 2;
+  const isMyTurnLS = !window._ol || window._olCurrentPlayer === myNum;
+
+  const oppHandCount = opp.hand || 0;
+  const oppHandHTML = window._ol
+    ? Array.from({length: Math.min(oppHandCount, 20)}).map(() =>
+        `<div class="mg-card-chip back"></div>`
+      ).join('') + (oppHandCount > 20 ? `<span style="color:#ccc;font-size:0.55rem">+${oppHandCount-20}</span>` : '')
+    : '';
+
+  const oppShields = typeof opp.shields === 'number' ? opp.shields : (Array.isArray(opp.shields) ? opp.shields.length : 0);
+  const oppShieldHTML = window._ol
+    ? Array.from({length: oppShields}).map(() => `<div class="mg-card-chip shield back"></div>`).join('')
+    : '';
+
+  const oppBZArr = Array.isArray(opp.battleZone) ? opp.battleZone : [];
+  const oppManaArr = Array.isArray(opp.manaZone) ? opp.manaZone : [];
+  const oppBZHTML = window._ol ? oppBZArr.map(c => renderChip(c, 'battle', -1)).join('') : '';
+  const oppManaHTML = window._ol ? oppManaArr.map(c => renderChip(c, 'mana', -1)).join('') : '';
+  const oppDeckCount = typeof opp.deck === 'number' ? opp.deck : '?';
+  const oppGraveCount = typeof opp.graveyard === 'number' ? opp.graveyard : (Array.isArray(opp.graveyard) ? opp.graveyard.length : 0);
+
+  const myBZHTML = state.battleZone.map((c, i) => renderChip(c, 'battle', i)).join('');
+  const myManaHTML = state.manaZone.map((c, i) => renderChip(c, 'mana', i)).join('');
+  const myShieldHTML = state.shields.map((s, i) => {
+    const civ = s?.faceUp ? getMobileCardCivClass(s) : '';
+    const sel = _mobileSelectedShieldIdx === i ? 'selected' : '';
+    return renderChip(s, `shield ${civ} ${sel}`, i);
+  }).join('');
+
+  // Hand grouping with stacking
+  const handGroups = [];
+  const handSeen = {};
+  state.hand.forEach((c, i) => {
+    const key = String(c?.name || `idx_${i}`);
+    if (handSeen[key] !== undefined) { handGroups[handSeen[key]].count++; }
+    else { handSeen[key] = handGroups.length; handGroups.push({ card: c, firstIdx: i, count: 1 }); }
+  });
+  const myHandHTML = handGroups.map(({ card: c, firstIdx: i, count }) => {
+    const layerCount = Math.min(count - 1, 4);
+    const layers = count > 1 ? Array.from({length: layerCount}).map((_, li) =>
+      `<div class="mg-hand-stack-layer" style="left:-${(li+1)*5}px"></div>`).join('') : '';
+    const directUnder = Array.isArray(c?.underCards) ? Math.min(c.underCards.length, 3) : 0;
+    const ml = ((count > 1 ? layerCount : 0) + directUnder) * 5;
+    const imgUrl = getMobileCardImageUrl(c);
+    return `<div class="mg-card-chip hand ${getMobileCardCivClass(c)} ${count > 1 ? 'stacked' : ''}"
+      ${ml > 0 ? `style="margin-left:${ml}px"` : ''}
+      onclick="openMobileHandActionSheet(${i})"
+      oncontextmenu="openMobileCardZoneMenu(event,'hand',${i})"
+      ontouchstart="startMobileZoneLongPress(event,'hand',${i})"
+      ontouchend="cancelMobileZoneLongPress()"
+      ontouchmove="cancelMobileZoneLongPress()"
+      ontouchcancel="cancelMobileZoneLongPress()"
+      title="${escapeHtmlMobile(c?.name||'')}">
+      ${layers}
+      ${count > 1 ? `<div class="mg-hand-stack-count">x${count}</div>` : ''}
+      ${renderMobileUnderPeekLayers(c)}
+      ${imgUrl
+        ? `<img src="${escapeHtmlMobile(imgUrl)}" alt="${escapeHtmlMobile(c?.name||'')}" class="mg-card-chip-img" loading="lazy" decoding="async" onerror="handleMobileCardImageError(this)">`
+        : `<div class="mg-card-cost">${escapeHtmlMobile(String(Number.isFinite(Number(c?.cost)) ? c.cost : '-'))}</div>
+           <div class="mg-card-name">${escapeHtmlMobile(getMobileCardShortName(c?.name, 8))}</div>
+           <div class="mg-card-power">${escapeHtmlMobile(c?.power ? String(c.power) : '')}</div>`}
+    </div>`;
+  }).join('');
+
+  const hasRevealed = state.revealedZone.length > 0;
+  const revealedHTML = state.revealedZone.map((c, i) => `
+    <div class="mg-ls-revealed-wrap">
+      ${renderChip(c, 'revealed', i)}
+      <div style="display:flex;gap:1px;margin-top:1px">
+        <button class="mg-ls-rev-act" onclick="moveMobileCardBetweenZones('revealedZone',${i},'hand','top')">手</button>
+        <button class="mg-ls-rev-act" onclick="moveMobileCardBetweenZones('revealedZone',${i},'battleZone','top')">BZ</button>
+        <button class="mg-ls-rev-act red" onclick="moveMobileCardBetweenZones('revealedZone',${i},'graveyard','top')">墓</button>
+      </div>
+    </div>`).join('');
+
+  const deckTopActions = `oncontextmenu="openMobileCardZoneMenu(event,'deck',0)"
+    ontouchstart="startMobileZoneLongPress(event,'deck',0)"
+    ontouchend="cancelMobileZoneLongPress()"
+    ontouchmove="cancelMobileZoneLongPress()"
+    ontouchcancel="cancelMobileZoneLongPress()"`;
+
+  const oppRows = window._ol ? `
+    <div class="mg-ls-row opp-hand">
+      <div class="mg-ls-zone-cards">${oppHandHTML}</div>
+    </div>
+    <div class="mg-ls-row opp-mana">
+      <div class="mg-ls-zone-cards">${oppManaHTML}</div>
+      <div class="mg-pile-group">
+        <div class="mg-pile-btn"><span class="mg-pile-label">山</span><span class="mg-pile-count">${oppDeckCount}</span></div>
+        <div class="mg-pile-btn"><span class="mg-pile-label">墓</span><span class="mg-pile-count">${oppGraveCount}</span></div>
+      </div>
+    </div>
+    <div class="mg-ls-row opp-shield">
+      <div class="mg-ls-zone-cards">${oppShieldHTML}</div>
+    </div>
+    <div class="mg-ls-row opp-bz">
+      <div class="mg-ls-zone-cards">${oppBZHTML}</div>
+    </div>
+    <div class="mg-ls-sep"></div>
+  ` : '';
+
+  const ribbonExtra = _mobileRibbonOtherOpen ? `
+    <div class="mg-ribbon-extra">
+      <button class="mg-rbn-btn" onclick="moveMobileDeckTopTo('manaZone')">トップ→マナ</button>
+      <button class="mg-rbn-btn" onclick="moveMobileDeckTopTo('graveyard')">トップ→墓地</button>
+      <button class="mg-rbn-btn" onclick="moveMobileDeckTopTo('shields')">トップ→シールド</button>
+      <button class="mg-rbn-btn" onclick="untapAllMobileMana()">マナ全アンタップ</button>
+      <button class="mg-rbn-btn" onclick="drawMobileDeckCardsToPublic()">N枚表向き</button>
+      <button class="mg-rbn-btn" onclick="drawMobileDeckCardsToPrivate()">N枚見る</button>
+      <button class="mg-rbn-btn" onclick="openMobileDeckAllModal()">山札全部見る</button>
+      <button class="mg-rbn-btn" onclick="breakMobileShield()">シールド破壊${_mobileSelectedShieldIdx !== null ? ` (${_mobileSelectedShieldIdx + 1})` : ''}</button>
+      <button class="mg-rbn-btn" onclick="returnMobileFromGraveyard('hand')">墓地→手札</button>
+      ${window._ol ? `<button class="mg-rbn-btn" onclick="openMobileHandDiscardMenu()">ハンデス</button>` : ''}
+      ${!window._ol ? `<button class="mg-rbn-btn" onclick="undoMobileGame()">やり直し</button>` : ''}
+      <button class="mg-rbn-btn" onclick="renderMobileDeckList()">戻る</button>
+    </div>
+  ` : '';
+
+  const zoneMenuOpen = _mobileZoneMenuState !== null;
+
+  // Hand sheet content
+  const selCard = _mobileSelectedHandIdx !== null ? state.hand[_mobileSelectedHandIdx] : null;
+  const handSheetContent = selCard ? `
+    <div class="mg-sheet-title">${escapeHtmlMobile(selCard?.name || 'CARD')}</div>
+    <div class="mg-sheet-btns">
+      <button class="mg-sheet-btn battle" onclick="playMobileSelectedCard('battle')">BZへ出す</button>
+      <button class="mg-sheet-btn mana" onclick="playMobileSelectedCard('mana')">マナに置く</button>
+      <button class="mg-sheet-btn shield" onclick="playMobileHandCardTo('shields','top')">シールドへ</button>
+      <button class="mg-sheet-btn deck" onclick="playMobileHandCardTo('deck','top')">デッキトップへ</button>
+      <button class="mg-sheet-btn deck" onclick="playMobileHandCardTo('deck','bottom')">デッキボトムへ</button>
+      <button class="mg-sheet-btn grave" onclick="playMobileHandCardTo('graveyard','top')">墓地へ</button>
+      <button class="mg-sheet-btn detail" onclick="openMobileHandCardDetail()">カード詳細</button>
+      <button class="mg-sheet-btn close" onclick="closeMobileHandSheet()">閉じる</button>
+    </div>
+  ` : '';
+
   container.innerHTML = `
-    <div class="mg-root">
-      
-      <!-- ヘッダー -->
-      <div class="mg-header ${headerTurnClass}">
-        ターン ${state.turn} |
-        <span
-          class="mg-deck-count"
-          oncontextmenu="openMobileCardZoneMenu(event, 'deck', ${Math.max(0, state.deck.length - 1)})"
-          ontouchstart="startMobileZoneLongPress(event, 'deck', ${Math.max(0, state.deck.length - 1)})"
-          ontouchend="cancelMobileZoneLongPress()"
-          ontouchmove="cancelMobileZoneLongPress()"
-          ontouchcancel="cancelMobileZoneLongPress()"
-          title="長押しで山札トップ操作">デッキ: ${state.deck.length}</span>
-        ${ol ? ` | <span class="mg-turn-state ${isMyTurn ? 'mine' : 'opponent'}">${isMyTurn ? '自分のターン' : '相手のターン'}</span>` : ''}
-      </div>
-      ${ol ? `<div class="mg-online-meta">
-        オンライン対戦: ${escapeHtmlMobile(ol.p1Name)} vs ${ol.p2Name ? escapeHtmlMobile(ol.p2Name) : '待機中'}
-      </div>` : ''}
+    <div class="mg-root ls-active">
+      <div class="mg-portrait-warn">端末を横向きにしてください</div>
 
-      ${ol ? `
-        <div class="mg-opp-wrap">
-          <div class="mg-opp-title">相手エリア: ${escapeHtmlMobile(oppName)}</div>
-          <div class="mg-opp-grid">
-            <div class="mg-opp-panel">
-              <div class="mg-opp-label">手札 (${Number(opp.hand ?? 0)})</div>
-              ${renderMobileBackCards(Number(opp.hand ?? 0))}
+      <div class="mg-ls-board">
+        ${oppRows}
+        <div class="mg-ls-row my-bz">
+          <div class="mg-ls-zone-cards">${myBZHTML}</div>
+        </div>
+        ${hasRevealed ? `<div class="mg-ls-row my-revealed"><div class="mg-ls-zone-cards">${revealedHTML}</div></div>` : ''}
+        <div class="mg-ls-row my-shield">
+          <div class="mg-ls-zone-cards">${myShieldHTML}</div>
+        </div>
+        <div class="mg-ls-row my-mana">
+          <div class="mg-ls-zone-cards">${myManaHTML}</div>
+          <div class="mg-pile-group">
+            <div class="mg-pile-btn" ${deckTopActions}>
+              <span class="mg-pile-label">山</span><span class="mg-pile-count">${state.deck.length}</span>
             </div>
-            <div class="mg-opp-panel">
-              <div class="mg-opp-label">シールド (${Number(opp.shields ?? 0)})</div>
-              ${renderMobileBackCards(Number(opp.shields ?? 0), 'shield')}
-            </div>
-            <div class="mg-opp-panel">
-              <div class="mg-opp-label">公開中 (${getZoneCount(opp.revealedZone)})</div>
-              ${renderOpponentPublicZone(opp.revealedZone, 'revealed')}
-            </div>
-            <div class="mg-opp-panel">
-              <div class="mg-opp-label">バトル (${getZoneCount(opp.battleZone)})</div>
-              ${renderOpponentPublicZone(opp.battleZone, 'battle')}
-            </div>
-            <div class="mg-opp-panel">
-              <div class="mg-opp-label">マナ (${getZoneCount(opp.manaZone)})</div>
-              ${renderOpponentPublicZone(opp.manaZone, 'mana')}
+            <div class="mg-pile-btn" onclick="openMobileGraveyardModal()">
+              <span class="mg-pile-label">墓</span><span class="mg-pile-count">${state.graveyard.length}</span>
             </div>
           </div>
-          <div class="mg-opp-panel mg-opp-grave">
-            <div class="mg-opp-label">墓地 (${getZoneCount(opp.graveyard)})</div>
-            ${renderOpponentPublicZone(opp.graveyard, 'grave')}
-          </div>
         </div>
-      ` : ''}
-      
-      <!-- メインゲーム画面 -->
-      <div class="mg-main">
-
-        <div class="mg-me-wrap">
-          <div class="mg-me-title">自分エリア: ${escapeHtmlMobile(myName)}</div>
-          ${_mobileUnderInsertState ? '<div class="mg-zone-hint">重ね先を選択中: バトル/マナ/シールドをタップ</div>' : ''}
-        </div>
-
-        <!-- シールド -->
-        <div class="mg-zone-section shield">
-          <div class="mg-zone-title">シールド (${state.shields.length})</div>
-          <div class="mg-card-grid center">
-            ${state.shields.length ? state.shields.map((s, i) => {
-              const civ = s?.faceUp ? getMobileCardCivClass(s) : '';
-              const imageUrl = getMobileCardImageUrl(s);
-              const shortName = getMobileCardShortName(s?.name || '', 8);
-              const underCount = getMobileUnderCardCount(s);
-              return `
-                <div class="mg-card-chip shield ${civ} ${s?.faceUp ? 'faceup' : ''} ${imageUrl && s?.faceUp ? 'has-image' : ''} ${underCount > 0 ? 'has-under' : ''} ${_mobileSelectedShieldIdx === i ? 'selected' : ''} ${_mobileUnderInsertState ? 'stack-target' : ''}"
-                  onclick="onMobileShieldCardTap(${i})"
-                  oncontextmenu="openMobileCardZoneMenu(event, 'shields', ${i})"
-                  ontouchstart="startMobileZoneLongPress(event, 'shields', ${i})"
-                  ontouchend="cancelMobileZoneLongPress()"
-                  ontouchmove="cancelMobileZoneLongPress()"
-                  ontouchcancel="cancelMobileZoneLongPress()"
-                  title="${escapeHtmlMobile(s?.faceUp ? (s.name || 'シールド') : 'シールド')}">
-                  ${underCount > 0 ? `<div class="mg-under-stack" aria-hidden="true">${renderMobileUnderLayers(underCount)}</div><div class="mg-under-count">+${underCount}</div>` : ''}
-                  ${s?.faceUp
-                    ? (imageUrl
-                      ? `<img src="${escapeHtmlMobile(imageUrl)}" alt="${escapeHtmlMobile(s.name || 'SHIELD')}" class="mg-card-chip-img" loading="lazy" decoding="async" onerror="handleMobileCardImageError(this)">`
-                      : `<div class="mg-card-name">${escapeHtmlMobile(shortName || 'SH')}</div>`)
-                    : 'SH'}
-                </div>
-              `;
-            }).join('') : '<div class="mg-zone-empty">カードなし</div>'}
-          </div>
-        </div>
-
-        <div class="mg-zone-section revealed">
-          <div class="mg-zone-title">公開中 (S・トリガー判定) (${revealedZoneCards.length})</div>
-          <div class="mg-revealed-grid">
-            ${revealedZoneCards.length ? revealedZoneCards.map((c, i) => `
-              <div class="mg-revealed-item">
-                ${renderChip(c, 'revealed', i)}
-                <div class="mg-revealed-actions">
-                  <button type="button" class="mg-revealed-btn hand" onclick="resolveMobileRevealedToHand(${i})">手札に加える</button>
-                  <button type="button" class="mg-revealed-btn trigger" onclick="useMobileRevealedAsTrigger(${i})">トリガー使用</button>
-                </div>
-              </div>
-            `).join('') : '<div class="mg-zone-empty">公開カードなし</div>'}
-          </div>
-        </div>
-        
-        <!-- バトルゾーン -->
-        <div class="mg-zone-section battle">
-          <div class="mg-zone-title">バトルゾーン (${state.battleZone.length})</div>
-          <div class="mg-card-grid">
-            ${state.battleZone.length ? state.battleZone.map((c, i) => renderChip(c, 'battle', i)).join('') : '<div class="mg-zone-empty">カードなし</div>'}
-          </div>
-        </div>
-
-        <!-- マナゾーン -->
-        <div class="mg-zone-section mana">
-          <div class="mg-zone-title">マナゾーン (${state.manaZone.length})</div>
-          <div class="mg-card-grid">
-            ${state.manaZone.length ? state.manaZone.map((c, i) => renderChip(c, 'mana', i)).join('') : '<div class="mg-zone-empty">カードなし</div>'}
-          </div>
-        </div>
-
-        <!-- 墓地 -->
-        <div class="mg-zone-section grave">
-          <div class="mg-zone-title">墓地 (${state.graveyard.length})</div>
-          <div class="mg-card-grid clickable" onclick="openMobileGraveyardModal()">
-            ${state.graveyard.length
-              ? (() => {
-                const visible = state.graveyard.slice(-12);
-                const startIndex = state.graveyard.length - visible.length;
-                return visible.map((c, i) => renderChip(c, 'grave', startIndex + i)).join('');
-              })()
-              : '<div class="mg-zone-empty">カードなし</div>'}
-            ${state.graveyard.length > 12 ? `<div class="mg-more-chip">+${state.graveyard.length - 12}</div>` : ''}
-          </div>
-          <div class="mg-zone-hint">タップで墓地一覧</div>
-        </div>
-        
-      </div>
-      
-      <!-- 手札（固定下部） -->
-      <div class="mg-hand-dock">
-        <div class="mg-hand-title">手札 (${state.hand.length})</div>
-        <div class="mg-hand-row">
-          ${state.hand.length ? (() => {
-            const groups = [];
-            const seen = {};
-            state.hand.forEach((c, i) => {
-              const key = String(c?.name || `idx_${i}`);
-              if (seen[key] !== undefined) {
-                groups[seen[key]].count++;
-              } else {
-                seen[key] = groups.length;
-                groups.push({ card: c, firstIdx: i, count: 1 });
-              }
-            });
-            return groups.map(({ card: c, firstIdx: i, count }) => {
-              const layerCount = Math.min(count - 1, 4);
-              const layers = count > 1
-                ? Array.from({ length: layerCount }).map((_, li) =>
-                    `<div class="mg-hand-stack-layer" style="left:-${(li + 1) * 5}px"></div>`
-                  ).join('')
-                : '';
-              return `
-              <div class="mg-card-chip hand ${getMobileCardCivClass(c)} ${getMobileCardImageUrl(c) ? 'has-image' : ''} ${count > 1 ? 'stacked' : ''}"
-                style="${count > 1 ? `margin-left:${layerCount * 5}px` : ''}"
-                onclick="openMobileHandActionSheet(${i})"
-                oncontextmenu="openMobileCardZoneMenu(event, 'hand', ${i})"
-                ontouchstart="startMobileZoneLongPress(event, 'hand', ${i})"
-                ontouchend="cancelMobileZoneLongPress()"
-                ontouchmove="cancelMobileZoneLongPress()"
-                ontouchcancel="cancelMobileZoneLongPress()"
-                title="${escapeHtmlMobile(c.name)}${count > 1 ? ` x${count}` : ''}">
-                ${layers}
-                ${count > 1 ? `<div class="mg-hand-stack-count">x${count}</div>` : ''}
-                ${getMobileCardImageUrl(c)
-                  ? `<img src="${escapeHtmlMobile(getMobileCardImageUrl(c))}" alt="${escapeHtmlMobile(c?.name || 'CARD')}" class="mg-card-chip-img" loading="lazy" decoding="async" onerror="handleMobileCardImageError(this)">`
-                  : `<div class="mg-card-cost">${escapeHtmlMobile(String(Number.isFinite(Number(c?.cost)) ? Number(c.cost) : '-'))}</div>
-                <div class="mg-card-name">${escapeHtmlMobile(getMobileCardShortName(c.name, 8))}</div>
-                <div class="mg-card-power">${escapeHtmlMobile(c?.power ? String(c.power) : '')}</div>`}
-              </div>
-              `;
-            }).join('');
-          })() : '<div class="mg-zone-empty">カードなし</div>'}
+        <div class="mg-ls-row my-hand">
+          <div class="mg-ls-zone-cards">${myHandHTML}</div>
         </div>
       </div>
 
-      <div class="mg-sheet-backdrop ${selectedHandCard ? 'open' : ''}" onclick="closeMobileHandSheet()"></div>
-      <div class="mg-hand-sheet ${selectedHandCard ? 'open' : ''}">
-        <div class="mg-hand-sheet-title">${selectedHandCard ? escapeHtmlMobile(selectedHandCard.name) : '手札アクション'}</div>
-        <div class="mg-hand-sheet-actions">
-          <button onclick="playMobileSelectedCard('battle')" class="mg-sheet-btn battle">バトルに出す</button>
-          <button onclick="playMobileSelectedCard('mana')" class="mg-sheet-btn mana">マナに置く</button>
-          <button onclick="playMobileHandCardTo('shields')" class="mg-sheet-btn shield">シールドへ</button>
-          <button onclick="playMobileHandCardTo('deck', 'top')" class="mg-sheet-btn deck">山札トップへ</button>
-          <button onclick="playMobileHandCardTo('deck', 'bottom')" class="mg-sheet-btn deck">山札ボトムへ</button>
-          <button onclick="playMobileHandCardTo('graveyard')" class="mg-sheet-btn grave">墓地へ（呪文）</button>
-          <button onclick="openMobileHandCardDetail()" class="mg-sheet-btn detail">カード詳細</button>
-          <button onclick="closeMobileHandSheet()" class="mg-sheet-btn cancel">閉じる</button>
-        </div>
-      </div>
-
-      ${ol ? `
-        <div class="mg-chat-wrap">
-          <button onclick="toggleMobileChatPanel()" class="mg-chat-toggle">
-            ${_mobileChatOpen ? 'チャットを閉じる' : 'チャットを開く'}
-          </button>
-          <div id="mobile-chat-panel" class="mg-chat-panel ${_mobileChatOpen ? 'open' : ''}">
-            <div id="mobile-chat-messages" class="mg-chat-messages"></div>
-            <div class="mg-chat-input-row">
-              <input id="mobile-chat-input" type="text" maxlength="200" placeholder="メッセージを入力" onkeydown="onMobileChatKeyDown(event)"
-                class="mg-chat-input">
-              <button onclick="sendMobileChat()" class="mg-chat-send">送信</button>
-            </div>
-          </div>
-        </div>
-      ` : ''}
-      
-      <!-- 折りたたみリボン -->
       <div class="mg-ribbon">
         <div class="mg-ribbon-main">
-          <button onclick="drawMobileCard()" class="mg-btn mg-ribbon-btn draw ${_mobileNeedDrawGuide ? 'guide' : ''}">ドロー</button>
-          <button onclick="turnMobileEnd()" class="mg-btn mg-ribbon-btn end">ターンエンド</button>
-          <button onclick="toggleMobileRibbonOther()" class="mg-btn mg-ribbon-btn other">その他 ${_mobileRibbonOtherOpen ? '▲' : '▼'}</button>
+          <button class="mg-rbn-btn ${_mobileNeedDrawGuide ? 'guide' : ''}" onclick="drawMobileCard()">ドロー</button>
+          <button class="mg-rbn-btn end" onclick="turnMobileEnd()">ターンエンド</button>
+          ${window._ol ? `<span class="mg-turn-badge ${isMyTurnLS ? 'mine' : 'opp'}">${isMyTurnLS ? '自分のターン' : '相手のターン'}</span>` : ''}
+          <button class="mg-rbn-btn" onclick="toggleMobileRibbonOther()">${_mobileRibbonOtherOpen ? '▲' : '▼ その他'}</button>
+          <button class="mg-rbn-btn log" onclick="toggleMobileGameLog()">ログ</button>
         </div>
-        <div class="mg-ribbon-extra ${_mobileRibbonOtherOpen ? 'open' : ''}">
-          <div class="mg-ribbon-extra-grid">
-            <button onclick="moveMobileDeckTopTo('manaZone')" class="mg-btn mg-ribbon-btn deck-mana">トップ→マナ</button>
-            <button onclick="moveMobileDeckTopTo('graveyard')" class="mg-btn mg-ribbon-btn deck-grave">トップ→墓地</button>
-            <button onclick="moveMobileDeckTopTo('shields')" class="mg-btn mg-ribbon-btn deck-shield">トップ→シールド</button>
-            <button onclick="untapAllMobileMana()" class="mg-btn mg-ribbon-btn mana-untap">マナ全アンタップ</button>
+        ${ribbonExtra}
+      </div>
+
+      <div class="mg-log-overlay" id="mgLogOverlay">
+        ${_mobileGameLog.slice().reverse().map(e => `<div class="mg-log-entry">${escapeHtmlMobile(e)}</div>`).join('')}
+      </div>
+
+      <div class="mg-zone-menu-modal ${zoneMenuOpen ? 'open' : ''}" id="mgZoneMenuModal">
+        <div class="mg-zone-menu-backdrop" onclick="closeMobileCardZoneMenu()"></div>
+        <div class="mg-zone-menu-sheet" id="mgZoneMenuSheet"></div>
+      </div>
+
+      <div class="mg-sheet-backdrop ${_mobileSelectedHandIdx !== null ? 'open' : ''}" onclick="closeMobileHandSheet()"></div>
+      <div class="mg-hand-sheet ${_mobileSelectedHandIdx !== null ? 'open' : ''}" id="mgHandSheet">
+        ${handSheetContent}
+      </div>
+
+      ${window._ol ? `
+      <div class="mg-chat-wrap">
+        <button class="mg-chat-toggle" onclick="toggleMobileChatPanel()">${_mobileChatOpen ? '✕' : 'チャット'}</button>
+        <div class="mg-chat-panel ${_mobileChatOpen ? 'open' : ''}">
+          <div class="mg-chat-log" id="mgChatLog">
+            ${(window._olChatLogMobile || []).map(m =>
+              `<div class="mg-chat-msg ${m.p === window._ol?.p ? 'mine' : (m.p === 'sys' ? 'sys' : 'opp')}">
+                <span class="mg-chat-name">${escapeHtmlMobile(m.name)}</span>
+                <span class="mg-chat-text">${escapeHtmlMobile(m.msg)}</span>
+              </div>`
+            ).join('')}
           </div>
-          <div class="mg-ribbon-extra-grid">
-            <button onclick="drawMobileDeckCardsToPublic()" class="mg-btn mg-ribbon-btn deck-reveal">山札からN枚表向き</button>
-            <button onclick="drawMobileDeckCardsToPrivate()" class="mg-btn mg-ribbon-btn deck-peek">山札からN枚見る</button>
-            <button onclick="openMobileDeckAllModal()" class="mg-btn mg-ribbon-btn deck-all">山札を全部見る</button>
-            <button onclick="breakMobileShield()" class="mg-btn mg-ribbon-btn shield-break">${shieldBreakLabel}</button>
-            <button onclick="returnMobileFromGraveyard('hand')" class="mg-btn mg-ribbon-btn grave-return">墓地→手札</button>
-            ${window._ol ? '<button class="mg-btn mg-ribbon-btn handes" onclick="openMobileHandDiscardMenu()">ハンデス</button>' : ''}
-            ${!window._ol ? '<button onclick="undoMobileGame()" class="mg-btn mg-ribbon-btn undo">やり直し</button>' : ''}
-            <button onclick="renderMobileDeckList()" class="mg-btn mg-ribbon-btn back">戻る</button>
+          <div class="mg-chat-input-row">
+            <input id="mgChatInput" class="mg-chat-input" type="text" placeholder="メッセージ..." maxlength="100">
+            <button class="mg-chat-send" onclick="sendMobileChat()">送信</button>
           </div>
-          ${_mobileGameLog.length ? `
-            <div class="mg-game-log">
-              ${_mobileGameLog.slice().reverse().slice(0, 8).map(entry =>
-                `<div class="mg-log-entry">${escapeHtmlMobile(entry)}</div>`
-              ).join('')}
-            </div>
-          ` : ''}
         </div>
       </div>
-      
+      ` : ''}
     </div>
   `;
 
@@ -3990,6 +3963,9 @@ function startMobileOnlineGame() {
   engineMobile.initGame(deckData);
   window._ol.eventSource = null;
   olStartEventListenerMobile();
+  if (screen.orientation && typeof screen.orientation.lock === 'function') {
+    screen.orientation.lock('landscape').catch(() => {});
+  }
   renderMobileGame();
   setTimeout(() => olSendActionMobile('state'), 200);
 }
