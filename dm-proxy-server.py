@@ -1591,6 +1591,24 @@ def _extract_card_image(data: dict | None) -> str:
     return str(data.get("imageUrl") or data.get("img") or data.get("thumb") or "").strip()
 
 
+def _image_identity_key(raw_url: str) -> str:
+    url = str(raw_url or "").strip()
+    if not url:
+        return ""
+
+    parsed = urllib.parse.urlparse(url)
+    # Proxy URL case: /img?url=<encoded-remote-url>
+    if parsed.path.rstrip("/").endswith("/img"):
+        nested = urllib.parse.parse_qs(parsed.query).get("url", [""])[0]
+        if nested:
+            return _image_identity_key(urllib.parse.unquote(nested))
+
+    path = urllib.parse.unquote(parsed.path or "")
+    if not path:
+        return url.lower()
+    return path.rsplit("/", 1)[-1].lower()
+
+
 # ─── HTTP Handler ──────────────────────────────────────────────────────────────
 
 class DMServer(ThreadingMixIn, HTTPServer):
@@ -2078,7 +2096,11 @@ class Handler(BaseHTTPRequestHandler):
                 current_img = _extract_card_image(_cache_get(f"dmwiki_{lookup_name}"))
 
             if current_img:
-                has_current = any(_extract_card_image(opt) == current_img for opt in options)
+                current_key = _image_identity_key(current_img)
+                has_current = any(
+                    _image_identity_key(_extract_card_image(opt)) == current_key
+                    for opt in options
+                )
                 if not has_current:
                     options.insert(0, {
                         "artId": "current",
