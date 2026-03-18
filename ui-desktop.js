@@ -1042,6 +1042,7 @@ function renderDesktopDeckList() {
   _desktopUnderInsertState = null;
   _desktopDeckPeekPrivateCards = [];
   _desktopOpponentDeckRevealSignature = '';
+  if (window._vs) { window._vs = null; window._olOpponent = null; }
 
   const container = document.getElementById('app-desktop');
   const savedDecks = getSavedDecks();
@@ -1177,6 +1178,7 @@ function renderDesktopDeckList() {
           <button onclick="saveDesktopDeck()" ${canSaveSelectedDeck ? '' : 'disabled'} class="dl-main-btn ${canSaveSelectedDeck ? '' : 'disabled'}">保存</button>
           <button onclick="restoreAllDesktopLocalDecksToCloud()" ${canBulkCloudRestore ? '' : 'disabled'} class="dl-main-btn ${canBulkCloudRestore ? '' : 'disabled'}">ローカル一括復元</button>
           <button onclick="playDesktopDeckGame()" ${hasDeckSelected && cardCount > 0 ? '' : 'disabled'} class="dl-main-btn ${hasDeckSelected && cardCount > 0 ? '' : 'disabled'}">一人回し</button>
+          <button onclick="openDesktopVsSetup()" ${hasDeckSelected && cardCount > 0 ? '' : 'disabled'} class="dl-main-btn ${hasDeckSelected && cardCount > 0 ? '' : 'disabled'}">VS</button>
         </div>
 
         ${deckName ? `
@@ -1382,12 +1384,14 @@ function renderDesktopGame() {
   }
   const container = document.getElementById('app-desktop');
   const ol = window._ol;
+  const vs = window._vs;
+  const olEff = ol || (vs ? { p: vs.activePlayer, p1Name: `P1 (${vs.p1DeckName})`, p2Name: `P2 (${vs.p2DeckName})` } : null);
   const opp = window._olOpponent || {};
-  const myNum = ol ? (ol.p === 'p1' ? 1 : 2) : 1;
-  const isMyTurn = ol && window._olCurrentPlayer && window._olCurrentPlayer === myNum;
-  const headerTurnClass = ol ? (isMyTurn ? 'mine-turn' : 'opponent-turn') : 'solo-turn';
-  const myName = ol ? (ol.p === 'p1' ? (ol.p1Name || 'Player 1') : (ol.p2Name || 'Player 2')) : '自分';
-  const oppName = ol ? (ol.p === 'p1' ? (ol.p2Name || 'Player 2') : (ol.p1Name || 'Player 1')) : '相手';
+  const myNum = olEff ? (olEff.p === 'p1' ? 1 : 2) : 1;
+  const isMyTurn = vs ? true : (ol && window._olCurrentPlayer && window._olCurrentPlayer === myNum);
+  const headerTurnClass = olEff ? (isMyTurn ? 'mine-turn' : 'opponent-turn') : 'solo-turn';
+  const myName = olEff ? (olEff.p === 'p1' ? (olEff.p1Name || 'P1') : (olEff.p2Name || 'P2')) : '自分';
+  const oppName = olEff ? (olEff.p === 'p1' ? (olEff.p2Name || 'P2') : (olEff.p1Name || 'P1')) : '相手';
 
   const getZoneCount = (zone) => Array.isArray(zone) ? zone.length : Math.max(0, Number(zone) || 0);
 
@@ -1478,8 +1482,8 @@ function renderDesktopGame() {
       <div class="dg-v2-header ${headerTurnClass}">
         <div class="dg-v2-head-left">
           <div class="dg-turn-pill">T<b>${state.turn}</b> 手<b>${state.hand.length}</b> マナ<b>${state.manaZone.length}</b></div>
-          ${ol ? `<div class="dg-full-state ${isMyTurn ? 'mine' : 'opponent'}">${isMyTurn ? 'あなたのターン' : '相手のターン'}</div>` : '<div class="dg-full-state solo">一人回し</div>'}
-          ${ol ? `<span class="dg-v2-match">${escapeHtml(myName)} vs ${escapeHtml(oppName)}</span>` : ''}
+          ${vs ? `<div class="dg-full-state mine">VS: ${escapeHtml(vs.activePlayer === 'p1' ? `P1 (${vs.p1DeckName})` : `P2 (${vs.p2DeckName})`)} のターン</div>` : ol ? `<div class="dg-full-state ${isMyTurn ? 'mine' : 'opponent'}">${isMyTurn ? 'あなたのターン' : '相手のターン'}</div>` : '<div class="dg-full-state solo">一人回し</div>'}}
+          ${olEff ? `<span class="dg-v2-match">${escapeHtml(myName)} vs ${escapeHtml(oppName)}</span>` : ''}
         </div>
         <div class="dg-v2-head-actions">
           <button onclick="drawDesktopCard()" class="dg-btn draw ${_desktopNeedDrawGuide ? 'guide' : ''}">ドロー</button>
@@ -1504,7 +1508,7 @@ function renderDesktopGame() {
         <div class="dg-v2-board">
           ${_desktopUnderInsertState ? '<div class="dg-v2-hint">重ね先を選択: バトル/マナ/シールドのカードをクリック</div>' : ''}
 
-          ${ol ? `
+          ${olEff ? `
           <div class="dg-v2-row opp-hand">
             <span class="dg-v2-label">手札<br><b>${Number(opp.hand ?? 0)}</b></span>
             <div class="dg-v2-cards">
@@ -1641,7 +1645,7 @@ function renderDesktopGame() {
           ` : ''}
         </div>
 
-        ${ol ? `
+        ${ol && !vs ? `
           <div class="dg-v2-chat">
             <div class="dg-chat-title">チャット</div>
             <div id="desktop-chat-messages" class="dg-chat-messages"></div>
@@ -2567,6 +2571,10 @@ function drawDesktopCard() {
 }
 
 function turnDesktopEnd() {
+  if (window._vs) {
+    _vsTurnEndDesktop();
+    return;
+  }
   if (window._ol && !canActDesktopOnline()) {
     showDesktopToast('相手のターンです', 'warn');
     return;
@@ -3814,6 +3822,139 @@ function playDesktopDeckGame() {
     engine.initGame(window._deckCards);
   }
   _desktopNeedDrawGuide = true;
+  renderDesktopGame();
+}
+
+// ─── VSモード（疑似対戦）────────────────────────────────────────────
+
+async function openDesktopVsSetup() {
+  const p1DeckName = window._deckEditing;
+  if (!p1DeckName || !window._deckCards.length) {
+    showDesktopToast('先にデッキを選択してください', 'warn');
+    return;
+  }
+  const savedDecks = getSavedDecks();
+  const localNames = Object.keys(savedDecks);
+  const cloudNames = Array.isArray(window._serverDeckNames) ? window._serverDeckNames : [];
+  const allNames = Array.from(new Set([...localNames, ...cloudNames]))
+    .sort((a, b) => String(a).localeCompare(String(b), 'ja'));
+
+  const optionsHtml = allNames.map(n =>
+    `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`
+  ).join('');
+
+  let modal = document.getElementById('desktop-vs-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'desktop-vs-modal';
+    modal.className = 'dm-confirm-modal';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `
+    <div class="dm-confirm-backdrop"></div>
+    <div class="dm-confirm-body">
+      <div class="dm-confirm-message">
+        <div style="font-weight:700;margin-bottom:10px">VS モード設定</div>
+        <div style="font-size:0.85rem;margin-bottom:6px">P1 デッキ:  <strong>${escapeHtml(p1DeckName)}</strong></div>
+        <div style="font-size:0.85rem;margin-bottom:4px">P2 デッキを選択:</div>
+        <select id="vs-p2-deck-select" class="dl-input dl-select" style="width:100%;margin-bottom:10px">
+          <option value="">-- 選択 --</option>
+          ${optionsHtml}
+        </select>
+      </div>
+      <div class="dm-confirm-actions">
+        <button id="vs-modal-start" class="dm-confirm-btn ok">ゲーム開始</button>
+        <button id="vs-modal-cancel" class="dm-confirm-btn cancel">キャンセル</button>
+      </div>
+    </div>
+  `;
+  modal.classList.add('open');
+
+  return new Promise((resolve) => {
+    const close = (val) => { modal.classList.remove('open'); resolve(val); };
+    document.getElementById('vs-modal-start').onclick = () => {
+      const p2 = document.getElementById('vs-p2-deck-select').value.trim();
+      if (!p2) { showDesktopToast('P2 のデッキを選択してください', 'warn'); return; }
+      close(p2);
+    };
+    document.getElementById('vs-modal-cancel').onclick = () => close(null);
+    modal.querySelector('.dm-confirm-backdrop').onclick = () => close(null);
+  }).then((p2DeckName) => {
+    if (p2DeckName) startDesktopVsGame(p1DeckName, p2DeckName);
+  });
+}
+
+async function startDesktopVsGame(p1DeckName, p2DeckName) {
+  const account = AuthService.getCurrentAccount();
+  const resolveDeck = async (name) => {
+    if (window.GameController?.resolveDeckData) {
+      const d = await window.GameController.resolveDeckData(name, account);
+      if (d && d.length) return d;
+    }
+    const saved = getSavedDecks();
+    if (saved[name] && saved[name].length) return saved[name];
+    if (account && !account.isGuest && account.pin) {
+      return await NetworkService.fetchServerDeck(account.username, account.pin, name).catch(() => null);
+    }
+    return null;
+  };
+
+  const [p1Data, p2Data] = await Promise.all([resolveDeck(p1DeckName), resolveDeck(p2DeckName)]);
+  if (!p1Data?.length) { showDesktopToast(`P1「${p1DeckName}」を取得できませんでした`, 'warn'); return; }
+  if (!p2Data?.length) { showDesktopToast(`P2「${p2DeckName}」を取得できませんでした`, 'warn'); return; }
+
+  const p1Engine = new GameEngine();
+  const p2Engine = new GameEngine();
+  if (window.GameController) {
+    window.GameController.initSoloGame(p1Engine, p1Data);
+    window.GameController.initSoloGame(p2Engine, p2Data);
+  } else {
+    p1Engine.initGame(p1Data);
+    p2Engine.initGame(p2Data);
+  }
+
+  const firstPlayer = Math.random() < 0.5 ? 'p1' : 'p2';
+  window._vs = { p1Engine, p2Engine, activePlayer: firstPlayer, p1DeckName, p2DeckName };
+  window._ol = null;
+  window._olOpponent = null;
+  window._olCurrentPlayer = null;
+
+  engine = firstPlayer === 'p1' ? p1Engine : p2Engine;
+  _vsRefreshOpponentView();
+
+  _desktopSelectedShieldIdx = null;
+  _desktopUnderInsertState = null;
+  _desktopDeckPeekPrivateCards = [];
+  _desktopNeedDrawGuide = true;
+  renderDesktopGame();
+  const who = firstPlayer === 'p1' ? `P1 (${p1DeckName})` : `P2 (${p2DeckName})`;
+  showDesktopTurnNotification(`${who} が先手です。まずはドロー`);
+}
+
+function _vsRefreshOpponentView() {
+  const vs = window._vs;
+  if (!vs) return;
+  const inactive = vs.activePlayer === 'p1' ? vs.p2Engine : vs.p1Engine;
+  window._olOpponent = buildDesktopPublicState(inactive.getState());
+}
+
+function _vsTurnEndDesktop() {
+  const vs = window._vs;
+  if (!vs) return;
+  if (window.GameController) {
+    window.GameController.turnEnd(engine, null);
+  } else {
+    engine.turnEnd();
+  }
+  vs.activePlayer = vs.activePlayer === 'p1' ? 'p2' : 'p1';
+  engine = vs.activePlayer === 'p1' ? vs.p1Engine : vs.p2Engine;
+  _desktopSelectedShieldIdx = null;
+  _desktopUnderInsertState = null;
+  _desktopDeckPeekPrivateCards = [];
+  _desktopNeedDrawGuide = true;
+  _vsRefreshOpponentView();
+  const who = vs.activePlayer === 'p1' ? `P1 (${vs.p1DeckName})` : `P2 (${vs.p2DeckName})`;
+  showDesktopTurnNotification(`${who} のターンです。まずはドロー`);
   renderDesktopGame();
 }
 

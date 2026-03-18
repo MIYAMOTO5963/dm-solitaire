@@ -15,7 +15,8 @@
     _olCurrentPlayer: null,
     _olStageName: null,
     _olChatLogDesktop: [],
-    _olChatLogMobile: []
+    _olChatLogMobile: [],
+    _vs: null
   };
 
   const listeners = new Map();

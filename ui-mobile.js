@@ -1589,6 +1589,7 @@ function renderMobileDeckList() {
   closeMobileDeckRevealModal();
   closeMobileDeckAllModal();
   _mobileUnderInsertState = null;
+  if (window._vs) { window._vs = null; window._olOpponent = null; }
   _mobileRibbonOtherOpen = false;
   _mobileDeckPeekPrivateCards = [];
   _mobileDeckRevealModalState = {
@@ -1683,6 +1684,7 @@ function renderMobileDeckList() {
           <button type="button" onclick="saveMobileDeck()" ${canSaveSelectedDeck ? '' : 'disabled'} class="ml-top-btn save ${canSaveSelectedDeck ? '' : 'disabled'}">保存</button>
           <button type="button" onclick="restoreAllMobileLocalDecksToCloud()" ${canBulkCloudRestore ? '' : 'disabled'} class="ml-top-btn save ${canBulkCloudRestore ? '' : 'disabled'}">復元</button>
           <button type="button" onclick="playMobileDeckGame()" ${canPlaySelectedDeck ? '' : 'disabled'} class="ml-top-btn play ${canPlaySelectedDeck ? '' : 'disabled'}">一人回し</button>
+          <button type="button" onclick="openMobileVsSetup()" ${canPlaySelectedDeck ? '' : 'disabled'} class="ml-top-btn play ${canPlaySelectedDeck ? '' : 'disabled'}">VS</button>
           <button type="button" onclick="openSelectedMobileDeckOnline()" ${hasDeckSelected ? '' : 'disabled'} class="ml-top-btn online ${hasDeckSelected ? '' : 'disabled'}">オンライン対戦</button>
         </div>
       </div>
@@ -2040,12 +2042,14 @@ function renderMobileGame() {
 
   const container = document.getElementById('app-mobile');
   const ol = window._ol;
+  const vs = window._vs;
+  const olEff = ol || (vs ? { p: vs.activePlayer, p1Name: `P1 (${vs.p1DeckName})`, p2Name: `P2 (${vs.p2DeckName})` } : null);
   const opp = window._olOpponent || {};
-  const myNum = ol ? (ol.p === 'p1' ? 1 : 2) : 1;
-  const isMyTurn = ol && window._olCurrentPlayer && window._olCurrentPlayer === myNum;
-  const headerTurnClass = ol ? (isMyTurn ? 'mine-turn' : 'opponent-turn') : 'solo-turn';
-  const myName = ol ? (ol.p === 'p1' ? (ol.p1Name || 'Player 1') : (ol.p2Name || 'Player 2')) : '自分';
-  const oppName = ol ? (ol.p === 'p1' ? (ol.p2Name || 'Player 2') : (ol.p1Name || 'Player 1')) : '相手';
+  const myNum = olEff ? (olEff.p === 'p1' ? 1 : 2) : 1;
+  const isMyTurn = ol ? (window._olCurrentPlayer && window._olCurrentPlayer === myNum) : !!vs;
+  const headerTurnClass = olEff ? (isMyTurn ? 'mine-turn' : 'opponent-turn') : 'solo-turn';
+  const myName = olEff ? (olEff.p === 'p1' ? (olEff.p1Name || 'Player 1') : (olEff.p2Name || 'Player 2')) : '自分';
+  const oppName = olEff ? (olEff.p === 'p1' ? (olEff.p2Name || 'Player 2') : (olEff.p1Name || 'Player 1')) : '相手';
   const selectedHandCard = _mobileSelectedHandIdx === null ? null : state.hand[_mobileSelectedHandIdx];
   const shieldBreakLabel = _mobileSelectedShieldIdx === null ? 'シールド破壊' : `シールド破壊 (${_mobileSelectedShieldIdx + 1})`;
 
@@ -2123,25 +2127,25 @@ function renderMobileGame() {
   };
   
   // Build HTML sections
-  const myNum = window._ol?.p === 'p1' ? 1 : 2;
-  const isMyTurnLS = !window._ol || window._olCurrentPlayer === myNum;
+  const myNum2 = olEff?.p === 'p1' ? 1 : 2;
+  const isMyTurnLS = !olEff || (vs ? true : window._olCurrentPlayer === myNum2);
 
   const oppHandCount = opp.hand || 0;
-  const oppHandHTML = window._ol
+  const oppHandHTML = olEff
     ? Array.from({length: Math.min(oppHandCount, 20)}).map(() =>
         `<div class="mg-card-chip back"></div>`
       ).join('') + (oppHandCount > 20 ? `<span style="color:#ccc;font-size:0.55rem">+${oppHandCount-20}</span>` : '')
     : '';
 
   const oppShields = typeof opp.shields === 'number' ? opp.shields : (Array.isArray(opp.shields) ? opp.shields.length : 0);
-  const oppShieldHTML = window._ol
+  const oppShieldHTML = olEff
     ? Array.from({length: oppShields}).map(() => `<div class="mg-card-chip shield back"></div>`).join('')
     : '';
 
   const oppBZArr = Array.isArray(opp.battleZone) ? opp.battleZone : [];
   const oppManaArr = Array.isArray(opp.manaZone) ? opp.manaZone : [];
-  const oppBZHTML = window._ol ? oppBZArr.map(c => renderChip(c, 'battle', -1)).join('') : '';
-  const oppManaHTML = window._ol ? oppManaArr.map(c => renderChip(c, 'mana', -1)).join('') : '';
+  const oppBZHTML = olEff ? oppBZArr.map(c => renderChip(c, 'battle', -1)).join('') : '';
+  const oppManaHTML = olEff ? oppManaArr.map(c => renderChip(c, 'mana', -1)).join('') : '';
   const oppDeckCount = typeof opp.deck === 'number' ? opp.deck : '?';
   const oppGraveCount = typeof opp.graveyard === 'number' ? opp.graveyard : (Array.isArray(opp.graveyard) ? opp.graveyard.length : 0);
 
@@ -2204,7 +2208,7 @@ function renderMobileGame() {
     ontouchmove="cancelMobileZoneLongPress()"
     ontouchcancel="cancelMobileZoneLongPress()"`;
 
-  const oppRows = window._ol ? `
+  const oppRows = olEff ? `
     <div class="mg-ls-row opp-hand">
       <div class="mg-ls-zone-cards">${oppHandHTML}</div>
     </div>
@@ -2238,7 +2242,7 @@ function renderMobileGame() {
       <button class="mg-rbn-btn" onclick="breakMobileShield()">シールド破壊${_mobileSelectedShieldIdx !== null ? ` (${_mobileSelectedShieldIdx + 1})` : ''}</button>
       <button class="mg-rbn-btn" onclick="returnMobileFromGraveyard('hand')">墓地→手札</button>
       ${window._ol ? `<button class="mg-rbn-btn" onclick="openMobileHandDiscardMenu()">ハンデス</button>` : ''}
-      ${!window._ol ? `<button class="mg-rbn-btn" onclick="undoMobileGame()">やり直し</button>` : ''}
+      ${!window._ol && !vs ? `<button class="mg-rbn-btn" onclick="undoMobileGame()">やり直し</button>` : ''}
       <button class="mg-rbn-btn" onclick="renderMobileDeckList()">戻る</button>
     </div>
   ` : '';
@@ -2292,7 +2296,7 @@ function renderMobileGame() {
         <div class="mg-ribbon-main">
           <button class="mg-rbn-btn ${_mobileNeedDrawGuide ? 'guide' : ''}" onclick="drawMobileCard()">ドロー</button>
           <button class="mg-rbn-btn end" onclick="turnMobileEnd()">ターンエンド</button>
-          ${window._ol ? `<span class="mg-turn-badge ${isMyTurnLS ? 'mine' : 'opp'}">${isMyTurnLS ? '自分のターン' : '相手のターン'}</span>` : ''}
+          ${olEff ? `<span class="mg-turn-badge ${isMyTurnLS ? 'mine' : 'opp'}">${isMyTurnLS ? '自分のターン' : '相手のターン'}</span>` : ''}
           <button class="mg-rbn-btn" onclick="toggleMobileRibbonOther()">${_mobileRibbonOtherOpen ? '▲' : '▼ その他'}</button>
           <button class="mg-rbn-btn log" onclick="toggleMobileGameLog()">ログ</button>
         </div>
@@ -3159,6 +3163,10 @@ function drawMobileCard() {
 }
 
 function turnMobileEnd() {
+  if (window._vs) {
+    _vsTurnEndMobile();
+    return;
+  }
   if (window._ol && !canActMobileOnline()) {
     showMobileToast('相手のターンです', 'warn');
     return;
@@ -3679,6 +3687,149 @@ function playMobileDeckGame() {
   _mobileSelectedShieldIdx = null;
   _mobileSelectedHandIdx = null;
   _mobileNeedDrawGuide = true;
+  renderMobileGame();
+}
+
+// ─── VSモード（疑似対戦・SP版）────────────────────────────────────────────
+
+async function openMobileVsSetup() {
+  const p1DeckName = window._deckEditing;
+  if (!p1DeckName || !window._deckCards.length) {
+    showMobileToast('先にデッキを選択してください', 'warn');
+    return;
+  }
+  const savedDecks = getSavedDecksMobile();
+  const localNames = Object.keys(savedDecks);
+  const cloudNames = Array.isArray(window._serverDeckNames) ? window._serverDeckNames : [];
+  const allNames = Array.from(new Set([...localNames, ...cloudNames]))
+    .sort((a, b) => String(a).localeCompare(String(b), 'ja'));
+
+  const optionsHtml = allNames.map(n =>
+    `<option value="${escapeHtmlMobile(n)}">${escapeHtmlMobile(n)}</option>`
+  ).join('');
+
+  let modal = document.getElementById('mobile-vs-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'mobile-vs-modal';
+    modal.className = 'dm-confirm-modal';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `
+    <div class="dm-confirm-backdrop"></div>
+    <div class="dm-confirm-body">
+      <div class="dm-confirm-message">
+        <div style="font-weight:700;margin-bottom:10px">VS モード設定</div>
+        <div style="font-size:0.85rem;margin-bottom:6px">P1 デッキ: <strong>${escapeHtmlMobile(p1DeckName)}</strong></div>
+        <div style="font-size:0.85rem;margin-bottom:4px">P2 デッキを選択:</div>
+        <select id="mobile-vs-p2-select" style="width:100%;margin-bottom:10px;padding:6px;font-size:0.9rem">
+          <option value="">-- 選択 --</option>
+          ${optionsHtml}
+        </select>
+      </div>
+      <div class="dm-confirm-actions">
+        <button id="mobile-vs-start" class="dm-confirm-btn ok">ゲーム開始</button>
+        <button id="mobile-vs-cancel" class="dm-confirm-btn cancel">キャンセル</button>
+      </div>
+    </div>
+  `;
+  modal.classList.add('open');
+
+  return new Promise((resolve) => {
+    const close = (val) => { modal.classList.remove('open'); resolve(val); };
+    document.getElementById('mobile-vs-start').onclick = () => {
+      const p2 = document.getElementById('mobile-vs-p2-select').value.trim();
+      if (!p2) { showMobileToast('P2 のデッキを選択してください', 'warn'); return; }
+      close(p2);
+    };
+    document.getElementById('mobile-vs-cancel').onclick = () => close(null);
+    modal.querySelector('.dm-confirm-backdrop').onclick = () => close(null);
+  }).then((p2DeckName) => {
+    if (p2DeckName) startMobileVsGame(p1DeckName, p2DeckName);
+  });
+}
+
+async function startMobileVsGame(p1DeckName, p2DeckName) {
+  const account = AuthService.getCurrentAccount();
+  const resolveDeck = async (name) => {
+    if (window.GameController?.resolveDeckData) {
+      const d = await window.GameController.resolveDeckData(name, account);
+      if (d && d.length) return d;
+    }
+    const saved = getSavedDecksMobile();
+    if (saved[name] && saved[name].length) return saved[name];
+    if (account && !account.isGuest && account.pin) {
+      return await NetworkService.fetchServerDeck(account.username, account.pin, name).catch(() => null);
+    }
+    return null;
+  };
+
+  const [p1Data, p2Data] = await Promise.all([resolveDeck(p1DeckName), resolveDeck(p2DeckName)]);
+  if (!p1Data?.length) { showMobileToast(`P1「${p1DeckName}」を取得できませんでした`, 'warn'); return; }
+  if (!p2Data?.length) { showMobileToast(`P2「${p2DeckName}」を取得できませんでした`, 'warn'); return; }
+
+  const p1Engine = new GameEngine();
+  const p2Engine = new GameEngine();
+  if (window.GameController) {
+    window.GameController.initSoloGame(p1Engine, p1Data);
+    window.GameController.initSoloGame(p2Engine, p2Data);
+  } else {
+    p1Engine.initGame(p1Data);
+    p2Engine.initGame(p2Data);
+  }
+
+  const firstPlayer = Math.random() < 0.5 ? 'p1' : 'p2';
+  window._vs = { p1Engine, p2Engine, activePlayer: firstPlayer, p1DeckName, p2DeckName };
+  window._ol = null;
+  window._olOpponent = null;
+  window._olCurrentPlayer = null;
+
+  engineMobile = firstPlayer === 'p1' ? p1Engine : p2Engine;
+  _vsRefreshOpponentViewMobile();
+
+  _mobileSelectedShieldIdx = null;
+  _mobileSelectedHandIdx = null;
+  _mobileUnderInsertState = null;
+  _mobileDeckPeekPrivateCards = [];
+  _mobileNeedDrawGuide = true;
+  renderMobileGame();
+  const who = firstPlayer === 'p1' ? `P1 (${p1DeckName})` : `P2 (${p2DeckName})`;
+  showMobileTurnNotification(`${who} が先手です。まずはドロー`);
+}
+
+function _vsRefreshOpponentViewMobile() {
+  const vs = window._vs;
+  if (!vs) return;
+  const inactive = vs.activePlayer === 'p1' ? vs.p2Engine : vs.p1Engine;
+  const s = inactive.getState();
+  window._olOpponent = {
+    hand: s.hand.length,
+    deck: s.deck.length,
+    shields: s.shields.length,
+    battleZone: (s.battleZone || []).map(c => ({ name: c?.name, cost: c?.cost, power: c?.power, tapped: c?.tapped })),
+    manaZone: (s.manaZone || []).map(c => ({ name: c?.name, cost: c?.cost, tapped: c?.tapped })),
+    graveyard: s.graveyard.length
+  };
+}
+
+function _vsTurnEndMobile() {
+  const vs = window._vs;
+  if (!vs) return;
+  if (window.GameController) {
+    window.GameController.turnEnd(engineMobile, null);
+  } else {
+    engineMobile.turnEnd();
+  }
+  vs.activePlayer = vs.activePlayer === 'p1' ? 'p2' : 'p1';
+  engineMobile = vs.activePlayer === 'p1' ? vs.p1Engine : vs.p2Engine;
+  _mobileSelectedShieldIdx = null;
+  _mobileSelectedHandIdx = null;
+  _mobileUnderInsertState = null;
+  _mobileDeckPeekPrivateCards = [];
+  _mobileNeedDrawGuide = true;
+  _vsRefreshOpponentViewMobile();
+  const who = vs.activePlayer === 'p1' ? `P1 (${vs.p1DeckName})` : `P2 (${vs.p2DeckName})`;
+  showMobileTurnNotification(`${who} のターンです。まずはドロー`);
   renderMobileGame();
 }
 
