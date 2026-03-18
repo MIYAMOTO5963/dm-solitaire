@@ -1070,10 +1070,17 @@ def _official_search_pairs(html: str) -> list[tuple[str, str]]:
     return uniq
 
 
+_official_detail_title_cache: dict[str, str] = {}
+
+
 def _official_fetch_detail_title(card_id: str) -> str:
-    safe_id = urllib.parse.quote(str(card_id or "").strip(), safe="")
-    if not safe_id:
+    cid = str(card_id or "").strip().lower()
+    if not cid:
         return ""
+    if cid in _official_detail_title_cache:
+        return _official_detail_title_cache[cid]
+
+    safe_id = urllib.parse.quote(cid, safe="")
 
     detail_url = f"{OFFICIAL_BASE}/card/detail/?id={safe_id}"
     req = urllib.request.Request(detail_url, headers=OFFICIAL_DETAIL_HEADERS)
@@ -1081,10 +1088,13 @@ def _official_fetch_detail_title(card_id: str) -> str:
         with urllib.request.urlopen(req, timeout=8) as r:
             chunk = r.read(4096).decode("utf-8", errors="replace")
     except Exception:
+        _official_detail_title_cache[cid] = ""
         return ""
 
     m = re.search(r'<title>([^<(|]+)', chunk)
-    return m.group(1).strip() if m else ""
+    title = m.group(1).strip() if m else ""
+    _official_detail_title_cache[cid] = title
+    return title
 
 
 _official_img_url_cache: dict[str, str] = {}
@@ -1528,12 +1538,22 @@ def get_card_detail_dmwiki(name: str) -> dict | None:
     if not html:
         return None
 
-    # Extract text from all style_td cells (card data table)
-    rows = []
-    for m in re.finditer(r'<td[^>]*class="style_td"[^>]*>(.*?)</td>', html, re.DOTALL):
-        text = _strip_tags(m.group(1)).strip()
-        if text:
-            rows.append(text)
+    def _extract_style_rows(fragment: str) -> list[str]:
+        out: list[str] = []
+        for m in re.finditer(r'<td[^>]*class="style_td"[^>]*>(.*?)</td>', fragment, re.DOTALL):
+            text = _strip_tags(m.group(1)).strip()
+            if text:
+                out.append(text)
+        return out
+
+    # Prefer the first card data table. Some pages include additional strategy
+    # tables later (or in hidden sections), which should not be mixed into
+    # the card's rules text.
+    first_table = re.search(r'<table[^>]*class="style_table"[^>]*>(.*?)</table>', html, re.DOTALL | re.IGNORECASE)
+    rows = _extract_style_rows(first_table.group(1) if first_table else "")
+    if len(rows) < 2:
+        # Fallback for edge cases where the first table is not the card table.
+        rows = _extract_style_rows(html)
 
     # No card table found — page doesn't exist or isn't a card page
     if not rows:
@@ -1593,6 +1613,8 @@ def get_card_detail_dmwiki(name: str) -> dict | None:
     )
     effect_rows = []
     for r in rows[2:]:
+        if r in ("コスト", "主要な対応クリーチャー", "代表的なロック対象", "コメント"):
+            break
         if re.match(r'^DM\d', r):
             continue
         if re.match(r'^《', r):
@@ -1673,6 +1695,44 @@ def _extract_card_image(data: dict | None) -> str:
     if not isinstance(data, dict):
         return ""
     return str(data.get("imageUrl") or data.get("img") or data.get("thumb") or "").strip()
+
+
+def _detail_text_is_contaminated(text: str) -> bool:
+    body = str(text or "")
+    if not body:
+        return False
+    # Strategy/guide tables must not leak into card rules text.
+    markers = ("主要な対応クリーチャー", "代表的なロック対象")
+    return any(m in body for m in markers)
+
+
+def _image_card_id_key(raw_url: str) -> str:
+    key = _image_identity_key(raw_url)
+    m = re.fullmatch(r'([a-z0-9\-]+)\.(?:jpg|jpeg|png)', key, re.IGNORECASE)
+    return m.group(1).lower() if m else ""
+
+
+def _cached_detail_needs_refresh(cache_key: str, data: dict | None) -> tuple[bool, str]:
+    if not isinstance(data, dict):
+        return False, ""
+
+    if _detail_text_is_contaminated(data.get("text") or ""):
+        return True, "contaminated-text"
+
+    image = _extract_card_image(data)
+    if not image:
+        return True, "missing-image"
+
+    key = str(cache_key or "")
+    if key.startswith("dmwiki_"):
+        cid = _image_card_id_key(image)
+        if cid:
+            title = _official_fetch_detail_title(cid)
+            name = _safe_text(data.get("name") or data.get("nameEn"), maxlen=160)
+            if title and name and not _official_name_matches(name, title):
+                return True, f"image-name-mismatch:{cid}"
+
+    return False, ""
 
 
 def _image_identity_key(raw_url: str) -> str:
@@ -2106,10 +2166,10 @@ class Handler(BaseHTTPRequestHandler):
 
             cached = _cache_get(cache_key)
             if cached and not force_refresh:
-                cached_image = str(cached.get("imageUrl") or cached.get("img") or cached.get("thumb") or "").strip()
-                if cached_image:
+                needs_refresh, reason = _cached_detail_needs_refresh(cache_key, cached)
+                if not needs_refresh:
                     return self._json(cached)
-                print(f"[detail] cached entry missing image, refreshing: {cache_key}", flush=True)
+                print(f"[detail] cached entry {reason}, refreshing: {cache_key}", flush=True)
 
             if pid:
                 if pid.startswith("dmwiki_"):
