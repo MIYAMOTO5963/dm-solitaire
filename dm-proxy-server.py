@@ -451,9 +451,11 @@ def _dmwiki_name_candidates(name: str) -> list[str]:
             seen.add(v); out.append(v)
     _add(name)
     _add(_normalize_card_name_for_url(name))
-    # swap wave dash (U+301C) ↔ fullwidth tilde (U+FF5E)
-    _add(name.replace('\u301c', '\uff5e').replace('\uff5e', '\u301c'))
-    # also try the normalized form with the other tilde
+    # swap wave dash (U+301C) → fullwidth tilde (U+FF5E)
+    _add(name.replace('\u301c', '\uff5e'))
+    # swap fullwidth tilde (U+FF5E) → wave dash (U+301C)
+    _add(name.replace('\uff5e', '\u301c'))
+    # also try the normalized form with wave dash instead of ~
     normed = _normalize_card_name_for_url(name)
     _add(normed.replace('~', '\u301c'))
     return out
@@ -1063,6 +1065,7 @@ def _img_from_dmwiki_attach(page_name: str) -> str:
             break
     if not html:
         return ""
+    # Pattern 1: ?plugin=ref links (same page may embed ref links)
     for m in re.finditer(
         r'href="(\?plugin=ref[^"]*\.(?:jpg|jpeg|png)[^"]*)"',
         html, re.IGNORECASE
@@ -1070,8 +1073,21 @@ def _img_from_dmwiki_attach(page_name: str) -> str:
         url = m.group(1)
         if _is_pack_filename(url):
             continue
-        rel = re.sub(r'&thumbnail(?:=[^&"]*)?', '', url)
+        rel = re.sub(r'&thumbnail(?:=[^&\"]*)?', '', url)
         full_url = f"{DMWIKI_BASE}/{rel}"
+        return f"{BASE_URL}/img?url={urllib.parse.quote(full_url, safe='')}"
+    # Pattern 2: PukiWiki attach list links (?cmd=attach&...&file=xxx.jpg&pcmd=open)
+    for m in re.finditer(
+        r'href="(\?cmd=attach[^"]*&file=[^"&]*\.(?:jpg|jpeg|png)[^"]*)"',
+        html, re.IGNORECASE
+    ):
+        url = m.group(1)
+        file_m = re.search(r'[?&]file=([^&\"]+)', url, re.IGNORECASE)
+        if file_m:
+            fn = urllib.parse.unquote(file_m.group(1)).rsplit('/', 1)[-1]
+            if _PACK_FNAME_RE.match(fn):
+                continue
+        full_url = f"{DMWIKI_BASE}/{url}"
         return f"{BASE_URL}/img?url={urllib.parse.quote(full_url, safe='')}"
     return ""
 
@@ -1147,10 +1163,15 @@ def get_card_detail_dmwiki(name: str) -> dict | None:
                     card_type = en
                     break
 
-    # Remaining rows: effect text (skip set codes like "DM24-RP1 18/75")
-    effect = "\n".join(
-        r for r in rows[2:] if not re.match(r'^DM\d', r)
-    ).strip()
+    # Remaining rows: effect text (skip set codes; stop at wiki strategy sections)
+    effect_rows = []
+    for r in rows[2:]:
+        if re.match(r'^DM\d', r):
+            continue
+        if re.match(r'^《[^》]+》$', r):
+            break  # wiki strategy section starts here
+        effect_rows.append(r)
+    effect = "\n".join(effect_rows).strip()
 
     # Get card image: dmwiki HTML → dmwiki attach list → official (name variants) → English wiki (name variants)
     img_url = _img_from_dmwiki_html(html) or _img_from_dmwiki_attach(name)
