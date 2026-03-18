@@ -3940,7 +3940,12 @@ function startMobileOnlineGame() {
     window.GameController.startOnlineMatch(window._ol.p);
   } else {
     window._olOpponent = { hand: 5, battleZone: 0, manaZone: 0, shields: 5, deckRevealZone: 0, revealedZone: 0, deck: 30, graveyard: 0 };
-    window._olCurrentPlayer = window._ol.p === 'p1' ? 1 : 2;
+    // p1 のみ先攻をランダム決定。p2 は最初の opponent_state で active を受け取る。
+    if (window._ol.p === 'p1') {
+      window._olCurrentPlayer = Math.random() < 0.5 ? 1 : 2;
+    } else {
+      window._olCurrentPlayer = 1; // p2 は暫定値。相手の state 受信時に上書きされる。
+    }
     window._olChatLogMobile = [];
   }
   _mobileSelectedShieldIdx = null;
@@ -4123,7 +4128,7 @@ function shouldApplyRemotePayloadMobile(payload) {
 
   const seq = Number(payload?.seq || 0);
   const last = Number(window._ol.remoteSeq || 0);
-  if (seq <= last) return false;
+  if (seq < last) return false;
 
   window._ol.remoteSeq = seq;
   return true;
@@ -4149,13 +4154,20 @@ function olSendActionMobile(actionType) {
   if (!window._ol || !engineMobile) return;
   const s = engineMobile.state;
   const publicState = buildMobilePublicState(s);
+  let activePlayer;
+  if (actionType === 'turn_end') {
+    activePlayer = window._ol.p === 'p1' ? 'p2' : 'p1';
+  } else {
+    // state 送信時は _olCurrentPlayer ベースで active を決定（先攻ランダム対応）
+    activePlayer = window._olCurrentPlayer === 1 ? 'p1' : 'p2';
+  }
   const payload = {
     room: window._ol.room,
     p: window._ol.p,
     type: actionType,
     seq: nextOnlineSeqMobile(),
     turn: s.turn,
-    active: actionType === 'turn_end' ? (window._ol.p === 'p1' ? 'p2' : 'p1') : window._ol.p,
+    active: activePlayer,
     p1: window._ol.p === 'p1' ? publicState : null,
     p2: window._ol.p === 'p2' ? publicState : null
   };

@@ -426,10 +426,9 @@ class GameEngine {
     const target = this.state[targetKey];
     if (!Array.isArray(source) || !Array.isArray(target) || source.length === 0) return false;
 
-    const idx = Number.isInteger(fromIndex)
-      ? fromIndex
-      : (fromIndex < 0 ? source.length - 1 : Number(fromIndex));
-    if (!Number.isInteger(idx) || idx < 0 || idx >= source.length) return false;
+    let idx = Number.isInteger(fromIndex) ? fromIndex : Number(fromIndex);
+    if (idx < 0) idx = source.length + idx; // -1 → 末尾、-2 → 末尾から2番目
+    if (idx < 0 || idx >= source.length) return false;
 
     this._saveState();
 

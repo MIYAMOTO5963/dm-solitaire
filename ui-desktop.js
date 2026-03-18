@@ -3870,13 +3870,13 @@ function desktopOnlineBackToDeckList() {
     _olReconnectTimerDesktop = null;
   }
 
-  if (window._ol && !window._olOpponent) {
-    if (window.GameController) {
-      window.GameController.clearOnlineSession();
-    } else {
-      window._ol = null;
-      window._olDeckData = null;
-    }
+  if (window.GameController) {
+    window.GameController.clearOnlineSession();
+  } else {
+    window._ol = null;
+    window._olDeckData = null;
+    window._olOpponent = null;
+    window._olCurrentPlayer = null;
   }
 
   renderDesktopDeckList();
@@ -4059,7 +4059,7 @@ function desktopOnlineStartWaitingForJoin() {
       if (!window._ol || window._ol.p !== 'p1') return;
 
       window._ol.reconnectAttempt = (window._ol.reconnectAttempt || 0) + 1;
-      if (window._ol.reconnectAttempt <= 3) {
+      if (window._ol.reconnectAttempt < 3) {
         const delay = Math.pow(2, window._ol.reconnectAttempt) * 1000;
         desktopOnlineUpdateStatus(`接続を再試行中… (${window._ol.reconnectAttempt}/3)`);
         _olReconnectTimerDesktop = setTimeout(connect, delay);
@@ -4403,7 +4403,12 @@ function startDesktopOnlineGame() {
     window.GameController.startOnlineMatch(window._ol.p);
   } else {
     window._olOpponent = { hand: 5, battleZone: 0, manaZone: 0, shields: 5, deckRevealZone: 0, revealedZone: 0, deck: 30, graveyard: 0 };
-    window._olCurrentPlayer = window._ol.p === 'p1' ? 1 : 2;
+    // p1 のみ先攻をランダム決定。p2 は最初の opponent_state で active を受け取る。
+    if (window._ol.p === 'p1') {
+      window._olCurrentPlayer = Math.random() < 0.5 ? 1 : 2;
+    } else {
+      window._olCurrentPlayer = 1; // p2 は暫定値。相手の state 受信時に上書きされる。
+    }
     window._olChatLogDesktop = [];
   }
   _desktopSelectedShieldIdx = null;
@@ -4435,6 +4440,7 @@ function olStartEventListenerDesktop() {
   }
 
   window._ol.remoteSeq = 0;
+  _desktopOpponentDeckRevealSignature = null;
 
   const room = window._ol.room;
   const player = window._ol.p;
@@ -4593,7 +4599,7 @@ function shouldApplyRemotePayloadDesktop(payload) {
 
   const seq = Number(payload?.seq || 0);
   const last = Number(window._ol.remoteSeq || 0);
-  if (seq <= last) return false;
+  if (seq < last) return false;
 
   window._ol.remoteSeq = seq;
   return true;
@@ -4619,13 +4625,20 @@ function olSendActionDesktop(actionType) {
   if (!window._ol || !engine) return;
   const s = engine.state;
   const publicState = buildDesktopPublicState(s);
+  let activePlayer;
+  if (actionType === 'turn_end') {
+    activePlayer = window._ol.p === 'p1' ? 'p2' : 'p1';
+  } else {
+    // state 送信時は _olCurrentPlayer ベースで active を決定（先攻ランダム対応）
+    activePlayer = window._olCurrentPlayer === 1 ? 'p1' : 'p2';
+  }
   const payload = {
     room: window._ol.room,
     p: window._ol.p,
     type: actionType,
     seq: nextOnlineSeqDesktop(),
     turn: s.turn,
-    active: actionType === 'turn_end' ? (window._ol.p === 'p1' ? 'p2' : 'p1') : window._ol.p,
+    active: activePlayer,
     p1: window._ol.p === 'p1' ? publicState : null,
     p2: window._ol.p === 'p2' ? publicState : null
   };

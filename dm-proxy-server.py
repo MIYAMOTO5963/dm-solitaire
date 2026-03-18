@@ -37,6 +37,7 @@ WIKI_API = "https://duelmasters.fandom.com/api.php"
 WIKI_HEADERS = {"User-Agent": "DMSolitaireTool/1.0 (local proxy)"}
 
 _dmwiki_cache: dict[str, list[dict]] = {}   # normalized_query → all matched cards
+DMWIKI_CACHE_MAX = 500
 
 # ─── Account management ──────────────────────────────────────────────────────────
 
@@ -450,6 +451,8 @@ def search_cards(query: str, page: int = 1) -> tuple[list[dict], int]:
         if cache_key not in _dmwiki_cache:
             results = search_cards_dmwiki(query)
             if results:  # only cache non-empty to avoid permanently stale entries
+                if len(_dmwiki_cache) >= DMWIKI_CACHE_MAX:
+                    _dmwiki_cache.clear()
                 _dmwiki_cache[cache_key] = results
         all_cards = _dmwiki_cache.get(cache_key, [])
         start = (page - 1) * PAGE_SIZE
@@ -1352,17 +1355,11 @@ class Handler(BaseHTTPRequestHandler):
             
             with _profiles_lock:
                 profile = _profiles.get(username)
-
-            if not profile or not verify_pin(pin, profile["pin_hash"], profile["pin_salt"]):
-                return self._json({"error": "invalid username or pin"}, 401)
-
-            pin_hash = profile["pin_hash"]
-            pin_salt = profile["pin_salt"]
-
-            with _profiles_lock:
-                if username not in _profiles:
+                if not profile or not verify_pin(pin, profile["pin_hash"], profile["pin_salt"]):
                     return self._json({"error": "invalid username or pin"}, 401)
                 _profiles[username]["last_deck"] = last_deck
+                pin_hash = profile["pin_hash"]
+                pin_salt = profile["pin_salt"]
 
             # Save to database
             _save_profile_to_db(username, pin_hash, pin_salt, last_deck)
@@ -1439,7 +1436,7 @@ class Handler(BaseHTTPRequestHandler):
             with _decks_lock:
                 deck_data = _decks.get(username, {}).get(deck_name)
 
-            if not deck_data:
+            if deck_data is None:
                 return self._json({"error": "deck not found"}, 404)
 
             print(f"[deck] get {username}/{deck_name}", flush=True)
