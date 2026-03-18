@@ -1011,6 +1011,31 @@ def _name_variants(card_name: str) -> list[str]:
     return variants[:6]
 
 
+def _strict_name_variants(card_name: str, limit: int = 24) -> list[str]:
+    """Generate typo/symbol variants while preserving the full card name semantics.
+
+    Unlike _name_variants(), this helper never drops prefixes/suffixes.
+    It is used for image-source lookups where partial-name fallback can
+    accidentally resolve to a different card.
+    """
+    seen: set[str] = set()
+    out: list[str] = []
+
+    def _add(v: str):
+        t = str(v or "").strip()
+        if not t or t in seen:
+            return
+        seen.add(t)
+        out.append(t)
+
+    for v in _dmwiki_name_candidates(card_name):
+        _add(v)
+        if len(out) >= max(1, int(limit or 1)):
+            break
+
+    return out
+
+
 def _official_proxy_image_url(raw_url: str) -> str:
     url = str(raw_url or "").strip()
     if not url:
@@ -1278,35 +1303,12 @@ def _official_art_variants_from_dmwiki(card_name: str, limit: int = 12) -> list[
 
 
 def _official_name_matches(query_name: str, page_title: str) -> bool:
-    page_norm = _norm_fw(page_title).replace(" ", "")
-    if not page_norm:
+    qn = _norm_fw(str(query_name or "")).replace(" ", "")
+    pn = _norm_fw(str(page_title or "")).replace(" ", "")
+    if not qn or not pn:
         return False
-
-    for candidate in _name_variants(query_name):
-        qn = _norm_fw(candidate).replace(" ", "")
-        if not qn:
-            continue
-
-        if page_norm == qn:
-            return True
-        if page_norm.startswith(qn + "/"):
-            return True
-        if qn.startswith(page_norm + "/"):
-            return True
-
-        if len(qn) >= 8 and page_norm.endswith(qn):
-            return True
-        if len(page_norm) >= 8 and qn.endswith(page_norm):
-            return True
-
-        if "/" in qn and len(page_norm) >= 4:
-            if qn.startswith(page_norm + "/") or qn.endswith("/" + page_norm):
-                return True
-        if "/" in page_norm and len(qn) >= 4:
-            if page_norm.startswith(qn + "/") or page_norm.endswith("/" + qn):
-                return True
-
-    return False
+    # Alt-art should keep exactly the same card name.
+    return qn == pn
 
 
 def _official_art_variants(card_name: str, limit: int = 20) -> list[dict]:
@@ -1602,9 +1604,9 @@ def get_card_detail_dmwiki(name: str) -> dict | None:
 
     # Get card image: dmwiki HTML → dmwiki set-code → dmwiki attach list → official (name variants) → English wiki (name variants)
     img_url = _img_from_dmwiki_html(html) or _img_from_dmwiki_setcode(html) or _img_from_dmwiki_attach(name)
-    candidates = _name_variants(card_name)
+    candidates = _strict_name_variants(card_name)
     if card_name != name:
-        for variant in _name_variants(name):
+        for variant in _strict_name_variants(name):
             if variant not in candidates:
                 candidates.append(variant)
 
