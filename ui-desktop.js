@@ -1520,15 +1520,9 @@ function renderDesktopGame() {
             <div class="dg-v2-cards">
               ${renderOpponentPublicZone(opp.manaZone, 'mana')}
             </div>
-            <div class="dg-v2-pile-col opp">
-              <div class="dg-v2-opp-pile">
-                <span class="dg-v2-pile-name">山札</span>
-                <span class="dg-v2-pile-cnt">${getZoneCount(opp.deck ?? 0)}</span>
-              </div>
-              <div class="dg-v2-opp-pile">
-                <span class="dg-v2-pile-name">墓地</span>
-                <span class="dg-v2-pile-cnt">${getZoneCount(opp.graveyard ?? 0)}</span>
-              </div>
+            <div class="dg-v2-pile-btn grave" style="pointer-events:none">
+              <span class="dg-v2-pile-name">墓地</span>
+              <span class="dg-v2-pile-cnt">${getZoneCount(opp.graveyard ?? 0)}</span>
             </div>
           </div>
 
@@ -1536,6 +1530,9 @@ function renderDesktopGame() {
             <span class="dg-v2-label">シールド<br><b>${Number(opp.shields ?? 0)}</b></span>
             <div class="dg-v2-cards">
               ${renderDesktopBackCards(Number(opp.shields ?? 0), 'shield')}
+            </div>
+            <div class="dg-v2-pile-btn deck" style="pointer-events:none">
+              <span class="dg-v2-pile-cnt">${getZoneCount(opp.deck ?? 0)}</span>
             </div>
           </div>
 

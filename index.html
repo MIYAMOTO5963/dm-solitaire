@@ -297,7 +297,8 @@
     .dg-grave-zone,
     .dg-back-cards {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
+      align-items: stretch;
       gap: 4px;
     }
 
@@ -390,8 +391,7 @@
     }
 
     .dg-card-chip.hand {
-      width: 45px;
-      height: 65px;
+      aspect-ratio: 5/7;
       background: linear-gradient(145deg, #b8c8d0 0%, #c8d4dc 100%);
       border: 1px solid #9fb0b8;
       cursor: grab;
@@ -400,29 +400,29 @@
     }
 
     .dg-card-chip.battle {
-      width: 45px;
-      height: 65px;
+      aspect-ratio: 5/7;
       background: #ebe0dc;
       border: 1px solid #c4b4ac;
       cursor: pointer;
+      flex-shrink: 0;
     }
 
     .dg-card-chip.mana {
-      width: 45px;
-      height: 65px;
+      aspect-ratio: 5/7;
       background: #dce4e8;
       border: 1px solid #9fb0b8;
       cursor: pointer;
+      flex-shrink: 0;
     }
 
     .dg-card-chip.shield {
-      width: 40px;
-      height: 50px;
+      aspect-ratio: 5/7;
       background-image: url('card-back.jpg');
       background-size: cover;
       background-position: center;
       border: 1px solid #7a94a8;
       color: transparent;
+      flex-shrink: 0;
     }
 
     .dg-card-chip.grave {
@@ -434,8 +434,8 @@
     }
 
     .dg-back-card {
-      width: 28px;
-      height: 40px;
+      aspect-ratio: 5/7;
+      flex-shrink: 0;
       border-radius: 4px;
       border: 1px solid rgba(255,255,255,0.25);
       background-image: url('card-back.jpg');
@@ -4481,8 +4481,6 @@
     }
 
     .dg-back-card {
-      width: 34px;
-      height: 48px;
       border-radius: 6px;
     }
 
@@ -4493,21 +4491,8 @@
     }
 
     @media (max-width: 1360px) {
-      .dg-card-chip.hand,
-      .dg-card-chip.battle,
-      .dg-card-chip.mana {
-        width: 47px;
-        height: 68px;
-      }
-
       .dg-shield-zone {
         grid-template-columns: repeat(auto-fill, minmax(38px, 62px));
-      }
-
-      .dg-pile-thumb,
-      .dg-pile-empty {
-        width: 50px;
-        height: 70px;
       }
     }
 
@@ -5695,7 +5680,7 @@
       min-width: 0;
       display: flex;
       flex-wrap: nowrap;
-      align-items: center;
+      align-items: stretch;
       gap: 4px;
       overflow-x: auto;
       overflow-y: hidden;
@@ -5784,9 +5769,10 @@
       gap: 1px;
     }
 
-    /* My pile: clickable buttons */
+    /* My pile: clickable buttons — card-sized */
     .dg-v2-pile-btn {
-      flex: 1;
+      flex-shrink: 0;
+      aspect-ratio: 5/7;
       position: relative;
       border: 1px solid #cdb08e;
       border-radius: 7px;
@@ -5815,6 +5801,35 @@
       background: linear-gradient(160deg, #f1e7da 0%, #ddd0bd 100%);
     }
 
+    .dg-v2-pile-btn.deck {
+      background-image: url('card-back.jpg');
+      background-size: cover;
+      background-position: center;
+      padding: 0;
+    }
+
+    .dg-v2-pile-btn.deck .dg-v2-pile-name { display: none; }
+
+    .dg-v2-pile-btn.deck .dg-v2-pile-cnt,
+    .dg-v2-pile-btn.has-image .dg-v2-pile-cnt {
+      position: absolute;
+      bottom: 3px;
+      right: 3px;
+      background: rgba(0,0,0,0.65);
+      color: #fff;
+      border-radius: 3px;
+      padding: 1px 4px;
+      font-size: 0.7rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .dg-v2-pile-btn.has-image {
+      padding: 0;
+    }
+
+    .dg-v2-pile-btn.has-image .dg-v2-pile-name { display: none; }
+
     .dg-v2-pile-name {
       font-size: 0.58rem;
       font-weight: 800;
@@ -5831,11 +5846,11 @@
     }
 
     .dg-v2-pile-thumb {
-      width: 30px;
-      height: 42px;
-      border-radius: 4px;
+      width: 100%;
+      height: 100%;
       object-fit: cover;
-      border: 1px solid rgba(115, 85, 58, 0.3);
+      border-radius: inherit;
+      display: block;
     }
 
     /* Chat sidebar */
@@ -6154,7 +6169,7 @@
       flex: 1;
       display: flex;
       flex-direction: row;
-      align-items: center;
+      align-items: stretch;
       gap: 2px;
       overflow-x: auto;
       overflow-y: hidden;
@@ -6166,9 +6181,7 @@
 
     /* Compact card size for landscape mobile */
     .mg-root.ls-active .mg-card-chip {
-      width: 28px;
-      height: 40px;
-      min-width: 28px;
+      aspect-ratio: 5/7;
       flex-shrink: 0;
       font-size: 0.52rem;
       border-radius: 3px;
@@ -6187,7 +6200,51 @@
       cursor: default;
     }
 
-    /* Pile group (deck + graveyard) - right side of mana row */
+    /* Pile buttons — card-sized, right side of zone row */
+    .mg-ls-pile {
+      flex-shrink: 0;
+      aspect-ratio: 5/7;
+      position: relative;
+      border-radius: 4px;
+      cursor: pointer;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-end;
+      padding: 0;
+    }
+    .mg-ls-pile.deck {
+      background-image: url('card-back.jpg');
+      background-size: cover;
+      background-position: center;
+    }
+    .mg-ls-pile.grave {
+      background: linear-gradient(160deg, #f1e7da 0%, #ddd0bd 100%);
+      border: 1px solid #9a8060;
+    }
+    .mg-ls-pile.opp-deck {
+      background-image: url('card-back.jpg');
+      background-size: cover;
+      background-position: center;
+      opacity: 0.85;
+    }
+    .mg-ls-pile.opp-grave {
+      background: rgba(60,48,36,0.85);
+      border: 1px solid #7a6a5a;
+    }
+    .mg-ls-pile-cnt {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      background: rgba(0,0,0,0.65);
+      color: #fff;
+      font-size: 0.52rem;
+      font-weight: 800;
+      border-radius: 2px;
+      padding: 1px 3px;
+      line-height: 1;
+    }
+    /* Legacy pile-group/btn (fallback) */
     .mg-pile-group {
       display: flex;
       flex-direction: column;

@@ -2210,13 +2210,15 @@ function renderMobileGame() {
     </div>
     <div class="mg-ls-row opp-mana">
       <div class="mg-ls-zone-cards">${oppManaHTML}</div>
-      <div class="mg-pile-group">
-        <div class="mg-pile-btn"><span class="mg-pile-label">山</span><span class="mg-pile-count">${oppDeckCount}</span></div>
-        <div class="mg-pile-btn"><span class="mg-pile-label">墓</span><span class="mg-pile-count">${oppGraveCount}</span></div>
+      <div class="mg-ls-pile opp-grave">
+        <span class="mg-ls-pile-cnt">${oppGraveCount}</span>
       </div>
     </div>
     <div class="mg-ls-row opp-shield">
       <div class="mg-ls-zone-cards">${oppShieldHTML}</div>
+      <div class="mg-ls-pile opp-deck">
+        <span class="mg-ls-pile-cnt">${oppDeckCount}</span>
+      </div>
     </div>
     <div class="mg-ls-row opp-bz">
       <div class="mg-ls-zone-cards">${oppBZHTML}</div>
@@ -2271,16 +2273,14 @@ function renderMobileGame() {
         ${hasRevealed ? `<div class="mg-ls-row my-revealed"><div class="mg-ls-zone-cards">${revealedHTML}</div></div>` : ''}
         <div class="mg-ls-row my-shield">
           <div class="mg-ls-zone-cards">${myShieldHTML}</div>
+          <div class="mg-ls-pile deck" ${deckTopActions}>
+            <span class="mg-ls-pile-cnt">${state.deck.length}</span>
+          </div>
         </div>
         <div class="mg-ls-row my-mana">
           <div class="mg-ls-zone-cards">${myManaHTML}</div>
-          <div class="mg-pile-group">
-            <div class="mg-pile-btn" ${deckTopActions}>
-              <span class="mg-pile-label">山</span><span class="mg-pile-count">${state.deck.length}</span>
-            </div>
-            <div class="mg-pile-btn" onclick="openMobileGraveyardModal()">
-              <span class="mg-pile-label">墓</span><span class="mg-pile-count">${state.graveyard.length}</span>
-            </div>
+          <div class="mg-ls-pile grave" onclick="openMobileGraveyardModal()">
+            <span class="mg-ls-pile-cnt">${state.graveyard.length}</span>
           </div>
         </div>
         <div class="mg-ls-row my-hand">
