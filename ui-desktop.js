@@ -575,7 +575,8 @@ async function openDesktopIllustrationPicker() {
   const token = ++_desktopIllustrationRequestToken;
   try {
     const result = await NetworkService.fetchCardIllustrations(_desktopDetailCardState, {
-      timeoutMs: 20000
+      timeoutMs: 20000,
+      forceRefresh: true
     });
     if (token !== _desktopIllustrationRequestToken) return;
 
