@@ -1684,7 +1684,7 @@ function renderMobileDeckList() {
           <button type="button" onclick="saveMobileDeck()" ${canSaveSelectedDeck ? '' : 'disabled'} class="ml-top-btn save ${canSaveSelectedDeck ? '' : 'disabled'}">保存</button>
           <button type="button" onclick="restoreAllMobileLocalDecksToCloud()" ${canBulkCloudRestore ? '' : 'disabled'} class="ml-top-btn save ${canBulkCloudRestore ? '' : 'disabled'}">復元</button>
           <button type="button" onclick="playMobileDeckGame()" ${canPlaySelectedDeck ? '' : 'disabled'} class="ml-top-btn play ${canPlaySelectedDeck ? '' : 'disabled'}">一人回し</button>
-          <button type="button" onclick="openMobileVsSetup()" ${canPlaySelectedDeck ? '' : 'disabled'} class="ml-top-btn play ${canPlaySelectedDeck ? '' : 'disabled'}">VS</button>
+          <button type="button" onclick="openMobileVsSetup()" ${canPlaySelectedDeck ? '' : 'disabled'} class="ml-top-btn play ${canPlaySelectedDeck ? '' : 'disabled'}">疑似対戦</button>
           <button type="button" onclick="openSelectedMobileDeckOnline()" ${hasDeckSelected ? '' : 'disabled'} class="ml-top-btn online ${hasDeckSelected ? '' : 'disabled'}">オンライン対戦</button>
         </div>
       </div>
@@ -2132,9 +2132,11 @@ function renderMobileGame() {
 
   const oppHandCount = opp.hand || 0;
   const oppHandHTML = olEff
-    ? Array.from({length: Math.min(oppHandCount, 20)}).map(() =>
-        `<div class="mg-card-chip back"></div>`
-      ).join('') + (oppHandCount > 20 ? `<span style="color:#ccc;font-size:0.55rem">+${oppHandCount-20}</span>` : '')
+    ? (vs
+        ? (opp.handCards || []).map(c => renderChip(c, 'hand', -1)).join('')
+        : Array.from({length: Math.min(oppHandCount, 20)}).map(() =>
+            `<div class="mg-card-chip back"></div>`
+          ).join('') + (oppHandCount > 20 ? `<span style="color:#ccc;font-size:0.55rem">+${oppHandCount-20}</span>` : ''))
     : '';
 
   const oppShields = typeof opp.shields === 'number' ? opp.shields : (Array.isArray(opp.shields) ? opp.shields.length : 0);
@@ -3719,7 +3721,7 @@ async function openMobileVsSetup() {
     <div class="dm-confirm-backdrop"></div>
     <div class="dm-confirm-body">
       <div class="dm-confirm-message">
-        <div style="font-weight:700;margin-bottom:10px">VS モード設定</div>
+        <div style="font-weight:700;margin-bottom:10px">疑似対戦モード設定</div>
         <div style="font-size:0.85rem;margin-bottom:6px">P1 デッキ: <strong>${escapeHtmlMobile(p1DeckName)}</strong></div>
         <div style="font-size:0.85rem;margin-bottom:4px">P2 デッキを選択:</div>
         <select id="mobile-vs-p2-select" style="width:100%;margin-bottom:10px;padding:6px;font-size:0.9rem">
@@ -3794,7 +3796,7 @@ async function startMobileVsGame(p1DeckName, p2DeckName) {
   _mobileNeedDrawGuide = true;
   renderMobileGame();
   const who = firstPlayer === 'p1' ? `P1 (${p1DeckName})` : `P2 (${p2DeckName})`;
-  showMobileTurnNotification(`${who} が先手です。まずはドロー`);
+  showMobileTurnNotification(`疑似対戦: ${who} が先手です。まずはドロー`);
 }
 
 function _vsRefreshOpponentViewMobile() {
@@ -3804,6 +3806,7 @@ function _vsRefreshOpponentViewMobile() {
   const s = inactive.getState();
   window._olOpponent = {
     hand: s.hand.length,
+    handCards: s.hand,
     deck: s.deck.length,
     shields: s.shields.length,
     battleZone: (s.battleZone || []).map(c => ({ name: c?.name, cost: c?.cost, power: c?.power, tapped: c?.tapped })),
@@ -3829,7 +3832,7 @@ function _vsTurnEndMobile() {
   _mobileNeedDrawGuide = true;
   _vsRefreshOpponentViewMobile();
   const who = vs.activePlayer === 'p1' ? `P1 (${vs.p1DeckName})` : `P2 (${vs.p2DeckName})`;
-  showMobileTurnNotification(`${who} のターンです。まずはドロー`);
+  showMobileTurnNotification(`疑似対戦: ${who} のターンです。まずはドロー`);
   renderMobileGame();
 }
 

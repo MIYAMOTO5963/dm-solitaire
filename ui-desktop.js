@@ -1178,7 +1178,7 @@ function renderDesktopDeckList() {
           <button onclick="saveDesktopDeck()" ${canSaveSelectedDeck ? '' : 'disabled'} class="dl-main-btn ${canSaveSelectedDeck ? '' : 'disabled'}">保存</button>
           <button onclick="restoreAllDesktopLocalDecksToCloud()" ${canBulkCloudRestore ? '' : 'disabled'} class="dl-main-btn ${canBulkCloudRestore ? '' : 'disabled'}">ローカル一括復元</button>
           <button onclick="playDesktopDeckGame()" ${hasDeckSelected && cardCount > 0 ? '' : 'disabled'} class="dl-main-btn ${hasDeckSelected && cardCount > 0 ? '' : 'disabled'}">一人回し</button>
-          <button onclick="openDesktopVsSetup()" ${hasDeckSelected && cardCount > 0 ? '' : 'disabled'} class="dl-main-btn ${hasDeckSelected && cardCount > 0 ? '' : 'disabled'}">VS</button>
+          <button onclick="openDesktopVsSetup()" ${hasDeckSelected && cardCount > 0 ? '' : 'disabled'} class="dl-main-btn ${hasDeckSelected && cardCount > 0 ? '' : 'disabled'}">疑似対戦</button>
         </div>
 
         ${deckName ? `
@@ -1512,11 +1512,13 @@ function renderDesktopGame() {
           <div class="dg-v2-row opp-hand">
             <span class="dg-v2-label">手札<br><b>${Number(opp.hand ?? 0)}</b></span>
             <div class="dg-v2-cards">
-              ${renderDesktopBackCards(Number(opp.hand ?? 0))}
+              ${vs
+                ? (opp.handCards || []).map(c => renderChip(c, 'hand', -1, 'opponent')).join('')
+                : renderDesktopBackCards(Number(opp.hand ?? 0))}
             </div>
-            <div class="dg-v2-row-side">
+            ${!vs ? `<div class="dg-v2-row-side">
               <button class="dg-handdiscard-btn" onclick="openDesktopHandDiscardMenu()" title="ハンデス">ハンデス</button>
-            </div>
+            </div>` : ''}
           </div>
 
           <div class="dg-v2-row opp-mana">
@@ -3854,7 +3856,7 @@ async function openDesktopVsSetup() {
     <div class="dm-confirm-backdrop"></div>
     <div class="dm-confirm-body">
       <div class="dm-confirm-message">
-        <div style="font-weight:700;margin-bottom:10px">VS モード設定</div>
+        <div style="font-weight:700;margin-bottom:10px">疑似対戦モード設定</div>
         <div style="font-size:0.85rem;margin-bottom:6px">P1 デッキ:  <strong>${escapeHtml(p1DeckName)}</strong></div>
         <div style="font-size:0.85rem;margin-bottom:4px">P2 デッキを選択:</div>
         <select id="vs-p2-deck-select" class="dl-input dl-select" style="width:100%;margin-bottom:10px">
@@ -3928,14 +3930,15 @@ async function startDesktopVsGame(p1DeckName, p2DeckName) {
   _desktopNeedDrawGuide = true;
   renderDesktopGame();
   const who = firstPlayer === 'p1' ? `P1 (${p1DeckName})` : `P2 (${p2DeckName})`;
-  showDesktopTurnNotification(`${who} が先手です。まずはドロー`);
+  showDesktopTurnNotification(`疑似対戦: ${who} が先手です。まずはドロー`);
 }
 
 function _vsRefreshOpponentView() {
   const vs = window._vs;
   if (!vs) return;
   const inactive = vs.activePlayer === 'p1' ? vs.p2Engine : vs.p1Engine;
-  window._olOpponent = buildDesktopPublicState(inactive.getState());
+  const s = inactive.getState();
+  window._olOpponent = { ...buildDesktopPublicState(s), handCards: s.hand };
 }
 
 function _vsTurnEndDesktop() {
@@ -3954,7 +3957,7 @@ function _vsTurnEndDesktop() {
   _desktopNeedDrawGuide = true;
   _vsRefreshOpponentView();
   const who = vs.activePlayer === 'p1' ? `P1 (${vs.p1DeckName})` : `P2 (${vs.p2DeckName})`;
-  showDesktopTurnNotification(`${who} のターンです。まずはドロー`);
+  showDesktopTurnNotification(`疑似対戦: ${who} のターンです。まずはドロー`);
   renderDesktopGame();
 }
 
