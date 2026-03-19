@@ -20,6 +20,17 @@ const MOBILE_SEARCH_HYDRATE_ERROR_COOLDOWN_MS = 8 * 1000;
 let _mobileSearchState = { query: '', page: 0, items: [], hasMore: false, loading: false };
 let _mobileZoneMenuState = null;
 let _mobileZoneMenuLongPressTimer = null;
+let _vsOppTargetMobile = false;
+
+function getVsOppEngineMobile() {
+  const vs = window._vs;
+  if (!vs) return engineMobile;
+  return vs.activePlayer === 'p1' ? vs.p2Engine : vs.p1Engine;
+}
+
+function _engM() {
+  return _mobileZoneMenuState?.targetEngine || engineMobile;
+}
 let _mobileZoneLongPressCtx = null;
 let _mobileUnderInsertState = null;
 let _mobileSkipNextTap = false;
@@ -1214,6 +1225,25 @@ function ensureMobileCardZoneMenu() {
   return modal;
 }
 
+function openMobileVsOppZoneMenu(event, zone, idx) {
+  _vsOppTargetMobile = true;
+  openMobileCardZoneMenu(event, zone, idx);
+}
+
+function startMobileVsOppLongPress(event, zone, idx) {
+  _vsOppTargetMobile = true;
+  startMobileZoneLongPress(event, zone, idx);
+}
+
+function onMobileVsOppBoardCardTap(zone, idx) {
+  const vs = window._vs;
+  if (!vs) return;
+  const saved = _mobileZoneMenuState;
+  _mobileZoneMenuState = { sourceZone: zone, sourceIndex: idx, targetEngine: getVsOppEngineMobile() };
+  tapMobileCard(zone, idx);
+  if (_mobileZoneMenuState) _mobileZoneMenuState = saved;
+}
+
 function closeMobileCardZoneMenu() {
   cancelMobileZoneLongPress();
   _mobileZoneMenuState = null;
@@ -1233,8 +1263,8 @@ function moveMobileCardBetweenZones(fromZone, fromIndex, toZone, position = 'top
 
   const options = { position: position === 'bottom' ? 'bottom' : 'top' };
   const ok = window.GameController
-    ? window.GameController.moveCardBetweenZones(engineMobile, fromZone, fromIndex, toZone, options)
-    : engineMobile.moveCardBetweenZones(fromZone, fromIndex, toZone, options);
+    ? window.GameController.moveCardBetweenZones(_engM(), fromZone, fromIndex, toZone, options)
+    : _engM().moveCardBetweenZones(fromZone, fromIndex, toZone, options);
   if (!ok) {
     showMobileToast('カード移動に失敗しました', 'warn');
     return;
@@ -1244,6 +1274,7 @@ function moveMobileCardBetweenZones(fromZone, fromIndex, toZone, position = 'top
   const toLabel = getMobileZoneLabel(toZone);
   appendMobileGameLog(`${fromLabel} → ${toLabel}`);
   if (window._ol) olSendActionMobile('state');
+  if (window._vs) _vsRefreshOpponentViewMobile();
   renderMobileGame();
 }
 
@@ -1316,20 +1347,21 @@ function setMobileCardTapped(zone, idx, tapped) {
     return;
   }
 
-  const cards = engineMobile?.state?.[zone];
+  const cards = _engM()?.state?.[zone];
   const card = Array.isArray(cards) ? cards[idx] : null;
   if (!card) return;
 
   const nextTapped = !!tapped;
   const ok = window.GameController?.setCardTapped
-    ? window.GameController.setCardTapped(engineMobile, zone, idx, nextTapped)
-    : ((!!card.tapped === nextTapped) ? true : engineMobile.tapCard(zone, idx));
+    ? window.GameController.setCardTapped(_engM(), zone, idx, nextTapped)
+    : ((!!card.tapped === nextTapped) ? true : _engM().tapCard(zone, idx));
   if (!ok) {
     showMobileToast('タップ状態を変更できませんでした', 'warn');
     return;
   }
 
   if (window._ol) olSendActionMobile('state');
+  if (window._vs) _vsRefreshOpponentViewMobile();
   renderMobileGame();
 }
 
@@ -1645,7 +1677,11 @@ function openMobileCardZoneMenu(event, sourceZone, sourceIndex) {
     return;
   }
 
-  const source = engineMobile.state[sourceZone];
+  const targetEngine = _vsOppTargetMobile ? getVsOppEngineMobile() : null;
+  _vsOppTargetMobile = false;
+  const activeEng = targetEngine || engineMobile;
+
+  const source = activeEng.state[sourceZone];
   const idx = Number(sourceIndex);
   if (!Array.isArray(source) || !source.length || !Number.isInteger(idx) || !source[idx]) {
     showMobileToast('移動できるカードがありません', 'warn');
@@ -1661,7 +1697,7 @@ function openMobileCardZoneMenu(event, sourceZone, sourceIndex) {
   const list = document.getElementById('mobile-zone-menu-list');
   if (!head || !list) return;
 
-  _mobileZoneMenuState = { sourceZone, sourceIndex: idx };
+  _mobileZoneMenuState = { sourceZone, sourceIndex: idx, targetEngine };
 
   list.innerHTML = actions.map((action) => {
     if (action.kind === 'sep') {
@@ -2307,7 +2343,7 @@ function renderMobileGame() {
     return `<div class="mg-back-cards">${chips}${rest}</div>`;
   };
 
-  const renderChip = (card, zoneClass, idx = -1) => {
+  const renderChip = (card, zoneClass, idx = -1, extra = '') => {
     const tapped = card?.tapped ? 'tapped' : '';
     const cost = Number.isFinite(Number(card?.cost)) ? Number(card.cost) : '-';
     const power = card?.power ? String(card.power) : '';
@@ -2321,8 +2357,10 @@ function renderMobileGame() {
         : (zoneClass === 'grave'
           ? 'graveyard'
           : (zoneClass === 'revealed' ? 'revealedZone' : '')));
+    const isVsOpp = extra === 'vs-opp';
     const canMenu = idx >= 0 && !!sourceZone;
-    const isOwnBoardCard = idx >= 0 && (sourceZone === 'battleZone' || sourceZone === 'manaZone');
+    const isOwnBoardCard = !isVsOpp && idx >= 0 && (sourceZone === 'battleZone' || sourceZone === 'manaZone');
+    const isVsOppBoardCard = isVsOpp && idx >= 0 && (sourceZone === 'battleZone' || sourceZone === 'manaZone');
     const isUnderSource = !!_mobileUnderInsertState
       && _mobileUnderInsertState.fromZone === sourceZone
       && _mobileUnderInsertState.fromIndex === idx;
@@ -2331,19 +2369,28 @@ function renderMobileGame() {
       'mg-card-chip',
       zoneClass,
       tapped,
+      isVsOpp ? 'opponent' : '',
       imageUrl ? 'has-image' : '',
       underCount > 0 ? 'has-under' : '',
       _mobileUnderInsertState && isOwnBoardCard ? 'stack-target' : '',
       isUnderSource ? 'under-source' : ''
     ].filter(Boolean).join(' ');
 
-    const onclick = isOwnBoardCard ? `onclick="onMobileBoardCardTap('${sourceZone}', ${idx})"` : '';
+    const onclick = isOwnBoardCard
+      ? `onclick="onMobileBoardCardTap('${sourceZone}', ${idx})"`
+      : (isVsOppBoardCard ? `onclick="onMobileVsOppBoardCardTap('${sourceZone}', ${idx})"` : '');
     const menuAttrs = canMenu
-      ? `oncontextmenu="openMobileCardZoneMenu(event, '${sourceZone}', ${idx})"
-        ontouchstart="startMobileZoneLongPress(event, '${sourceZone}', ${idx})"
-        ontouchend="cancelMobileZoneLongPress()"
-        ontouchmove="cancelMobileZoneLongPress()"
-        ontouchcancel="cancelMobileZoneLongPress()"`
+      ? (isVsOpp
+        ? `oncontextmenu="openMobileVsOppZoneMenu(event, '${sourceZone}', ${idx})"
+          ontouchstart="startMobileVsOppLongPress(event, '${sourceZone}', ${idx})"
+          ontouchend="cancelMobileZoneLongPress()"
+          ontouchmove="cancelMobileZoneLongPress()"
+          ontouchcancel="cancelMobileZoneLongPress()"`
+        : `oncontextmenu="openMobileCardZoneMenu(event, '${sourceZone}', ${idx})"
+          ontouchstart="startMobileZoneLongPress(event, '${sourceZone}', ${idx})"
+          ontouchend="cancelMobileZoneLongPress()"
+          ontouchmove="cancelMobileZoneLongPress()"
+          ontouchcancel="cancelMobileZoneLongPress()"`)
       : '';
 
     const directUnderCount = Array.isArray(card?.underCards) ? Math.min(card.underCards.length, 3) : 0;
@@ -2366,7 +2413,7 @@ function renderMobileGame() {
   const oppHandCount = opp.hand || 0;
   const oppHandHTML = olEff
     ? (vs
-        ? (opp.handCards || []).map(c => renderChip(c, 'hand', -1)).join('')
+        ? (opp.handCards || []).map((c, i) => renderChip(c, 'hand', i, 'vs-opp')).join('')
         : Array.from({length: Math.min(oppHandCount, 20)}).map(() =>
             `<div class="mg-card-chip back"></div>`
           ).join('') + (oppHandCount > 20 ? `<span style="color:#ccc;font-size:0.55rem">+${oppHandCount-20}</span>` : ''))
@@ -2379,8 +2426,8 @@ function renderMobileGame() {
 
   const oppBZArr = Array.isArray(opp.battleZone) ? opp.battleZone : [];
   const oppManaArr = Array.isArray(opp.manaZone) ? opp.manaZone : [];
-  const oppBZHTML = olEff ? oppBZArr.map(c => renderChip(c, 'battle', -1)).join('') : '';
-  const oppManaHTML = olEff ? oppManaArr.map(c => renderChip(c, 'mana', -1)).join('') : '';
+  const oppBZHTML = olEff ? oppBZArr.map((c, i) => renderChip(c, 'battle', vs ? i : -1, vs ? 'vs-opp' : '')).join('') : '';
+  const oppManaHTML = olEff ? oppManaArr.map((c, i) => renderChip(c, 'mana', vs ? i : -1, vs ? 'vs-opp' : '')).join('') : '';
   const oppDeckCount = typeof opp.deck === 'number' ? opp.deck : '?';
   const oppGraveCount = typeof opp.graveyard === 'number' ? opp.graveyard : (Array.isArray(opp.graveyard) ? opp.graveyard.length : 0);
 
@@ -3343,10 +3390,11 @@ function tapMobileCard(zone, idx) {
   }
 
   const ok = window.GameController
-    ? window.GameController.tapCard(engineMobile, zone, idx)
-    : engineMobile.tapCard(zone, idx);
+    ? window.GameController.tapCard(_engM(), zone, idx)
+    : _engM().tapCard(zone, idx);
   if (!ok) return;
   if (window._ol) olSendActionMobile('state');
+  if (window._vs) _vsRefreshOpponentViewMobile();
   renderMobileGame();
 }
 

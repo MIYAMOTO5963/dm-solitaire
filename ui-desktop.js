@@ -18,6 +18,17 @@ const DESKTOP_SEARCH_HYDRATE_NO_IMAGE_COOLDOWN_MS = 45 * 1000;
 const DESKTOP_SEARCH_HYDRATE_ERROR_COOLDOWN_MS = 8 * 1000;
 let _desktopZoneMenuState = null;
 let _desktopZoneMenuGlobalBound = false;
+let _vsOppTarget = false;
+
+function getVsOppEngine() {
+  const vs = window._vs;
+  if (!vs) return engine;
+  return vs.activePlayer === 'p1' ? vs.p2Engine : vs.p1Engine;
+}
+
+function _eng() {
+  return _desktopZoneMenuState?.targetEngine || engine;
+}
 let _desktopUnderInsertState = null;
 let _handDiscardStateDesktop = null;
 let _desktopDetailCardState = null;
@@ -1625,7 +1636,7 @@ function renderDesktopGame() {
 
     const visibleLimit = zoneClass === 'grave' ? 10 : 12;
     const visibleCards = zoneClass === 'grave' ? zone.slice(-visibleLimit) : zone.slice(0, visibleLimit);
-    const chips = visibleCards.map((card) => renderChip(card, zoneClass, -1, 'opponent')).join('');
+    const chips = visibleCards.map((card, i) => renderChip(card, zoneClass, vs ? i : -1, vs ? 'vs-opp' : 'opponent')).join('');
     const rest = zone.length > visibleCards.length
       ? `<div class="dg-more-chip">+${zone.length - visibleCards.length}</div>`
       : '';
@@ -1648,7 +1659,9 @@ function renderDesktopGame() {
           ? 'graveyard'
           : (zoneClass === 'revealed' ? 'revealedZone' : '')));
     const isOpponentCard = String(extra || '').includes('opponent');
-    const isOwnBoardCard = !isOpponentCard && idx >= 0 && (sourceZone === 'battleZone' || sourceZone === 'manaZone');
+    const isVsOpp = extra === 'vs-opp';
+    const isOwnBoardCard = !isOpponentCard && !isVsOpp && idx >= 0 && (sourceZone === 'battleZone' || sourceZone === 'manaZone');
+    const isVsOppBoardCard = isVsOpp && idx >= 0 && (sourceZone === 'battleZone' || sourceZone === 'manaZone');
     const isUnderSource = !!_desktopUnderInsertState
       && _desktopUnderInsertState.fromZone === sourceZone
       && _desktopUnderInsertState.fromIndex === idx;
@@ -1657,7 +1670,7 @@ function renderDesktopGame() {
       'dg-card-chip',
       zoneClass,
       tapped,
-      extra,
+      isVsOpp ? 'opponent' : extra,
       imageUrl ? 'has-image' : '',
       underCount > 0 ? 'has-under' : '',
       _desktopUnderInsertState && isOwnBoardCard ? 'stack-target' : '',
@@ -1666,9 +1679,11 @@ function renderDesktopGame() {
 
     const onClickAttr = isOwnBoardCard
       ? `onclick="onDesktopBoardCardClick('${sourceZone}', ${idx})"`
-      : '';
+      : (isVsOppBoardCard ? `onclick="onDesktopVsOppBoardCardClick('${sourceZone}', ${idx})"` : '');
     const contextMenuAttr = (!isOpponentCard && idx >= 0 && sourceZone)
-      ? `oncontextmenu="openDesktopCardZoneMenu(event, '${sourceZone}', ${idx})"`
+      ? (isVsOpp
+        ? `oncontextmenu="openDesktopVsOppZoneMenu(event, '${sourceZone}', ${idx})"`
+        : `oncontextmenu="openDesktopCardZoneMenu(event, '${sourceZone}', ${idx})"`)
       : '';
 
     const directUnderCount = Array.isArray(card?.underCards) ? Math.min(card.underCards.length, 3) : 0;
@@ -1732,7 +1747,7 @@ function renderDesktopGame() {
             <span class="dg-v2-label">手札<br><b>${Number(opp.hand ?? 0)}</b></span>
             <div class="dg-v2-cards">
               ${vs
-                ? (opp.handCards || []).map(c => renderChip(c, 'hand', -1, 'opponent')).join('')
+                ? (opp.handCards || []).map((c, i) => renderChip(c, 'hand', i, 'vs-opp')).join('')
                 : renderDesktopBackCards(Number(opp.hand ?? 0))}
             </div>
             ${!vs ? `<div class="dg-v2-row-side">
@@ -1979,20 +1994,21 @@ function setDesktopCardTapped(zone, idx, tapped) {
     return;
   }
 
-  const cards = engine?.state?.[zone];
+  const cards = _eng()?.state?.[zone];
   const card = Array.isArray(cards) ? cards[idx] : null;
   if (!card) return;
 
   const nextTapped = !!tapped;
   const ok = window.GameController?.setCardTapped
-    ? window.GameController.setCardTapped(engine, zone, idx, nextTapped)
-    : ((!!card.tapped === nextTapped) ? true : engine.tapCard(zone, idx));
+    ? window.GameController.setCardTapped(_eng(), zone, idx, nextTapped)
+    : ((!!card.tapped === nextTapped) ? true : _eng().tapCard(zone, idx));
   if (!ok) {
     showDesktopToast('タップ状態を変更できませんでした', 'warn');
     return;
   }
 
   if (window._ol) olSendActionDesktop('state');
+  if (window._vs) _vsRefreshOpponentView();
   renderDesktopGame();
 }
 
@@ -2212,10 +2228,11 @@ function tapDesktopCard(zone, idx) {
   }
 
   const ok = window.GameController
-    ? window.GameController.tapCard(engine, zone, idx)
-    : engine.tapCard(zone, idx);
+    ? window.GameController.tapCard(_eng(), zone, idx)
+    : _eng().tapCard(zone, idx);
   if (!ok) return;
   if (window._ol) olSendActionDesktop('state');
+  if (window._vs) _vsRefreshOpponentView();
   renderDesktopGame();
 }
 
@@ -2431,8 +2448,8 @@ function moveDesktopCardBetweenZones(fromZone, fromIndex, toZone, position = 'to
 
   const options = { position: position === 'bottom' ? 'bottom' : 'top' };
   const ok = window.GameController
-    ? window.GameController.moveCardBetweenZones(engine, fromZone, fromIndex, toZone, options)
-    : engine.moveCardBetweenZones(fromZone, fromIndex, toZone, options);
+    ? window.GameController.moveCardBetweenZones(_eng(), fromZone, fromIndex, toZone, options)
+    : _eng().moveCardBetweenZones(fromZone, fromIndex, toZone, options);
 
   if (!ok) {
     showDesktopToast('カード移動に失敗しました', 'warn');
@@ -2440,6 +2457,7 @@ function moveDesktopCardBetweenZones(fromZone, fromIndex, toZone, position = 'to
   }
 
   if (window._ol) olSendActionDesktop('state');
+  if (window._vs) _vsRefreshOpponentView();
   renderDesktopGame();
 }
 
@@ -2463,14 +2481,15 @@ function setDesktopShieldFaceUp(index, faceUp) {
   if (!Number.isInteger(idx)) return;
 
   const ok = window.GameController?.setShieldFaceUp
-    ? window.GameController.setShieldFaceUp(engine, idx, !!faceUp)
-    : (typeof engine.setShieldFaceUp === 'function' ? engine.setShieldFaceUp(idx, !!faceUp) : false);
+    ? window.GameController.setShieldFaceUp(_eng(), idx, !!faceUp)
+    : (typeof _eng().setShieldFaceUp === 'function' ? _eng().setShieldFaceUp(idx, !!faceUp) : false);
   if (!ok) {
     showDesktopToast('シールドの向きを変更できませんでした', 'warn');
     return;
   }
 
   if (window._ol) olSendActionDesktop('state');
+  if (window._vs) _vsRefreshOpponentView();
   renderDesktopGame();
 }
 
@@ -2564,7 +2583,11 @@ function openDesktopCardZoneMenu(event, sourceZone, sourceIndex) {
     return;
   }
 
-  const source = engine.state[sourceZone];
+  const targetEngine = _vsOppTarget ? getVsOppEngine() : null;
+  _vsOppTarget = false;
+  const activeEng = targetEngine || engine;
+
+  const source = activeEng.state[sourceZone];
   const idx = Number(sourceIndex);
   if (!Array.isArray(source) || !source.length || !Number.isInteger(idx) || !source[idx]) {
     showDesktopToast('移動できるカードがありません', 'warn');
@@ -2576,7 +2599,7 @@ function openDesktopCardZoneMenu(event, sourceZone, sourceIndex) {
   if (!actions.length) return;
 
   const menu = ensureDesktopCardZoneMenu();
-  _desktopZoneMenuState = { sourceZone, sourceIndex: idx };
+  _desktopZoneMenuState = { sourceZone, sourceIndex: idx, targetEngine };
 
   const actionHtml = actions.map((action) => {
     if (action.kind === 'sep') {
@@ -2691,6 +2714,20 @@ function openDesktopCardZoneMenu(event, sourceZone, sourceIndex) {
     menu.style.left = `${left}px`;
     menu.style.top = `${top}px`;
   });
+}
+
+function openDesktopVsOppZoneMenu(event, zone, idx) {
+  _vsOppTarget = true;
+  openDesktopCardZoneMenu(event, zone, idx);
+}
+
+function onDesktopVsOppBoardCardClick(zone, idx) {
+  const vs = window._vs;
+  if (!vs) return;
+  const saved = _desktopZoneMenuState;
+  _desktopZoneMenuState = { sourceZone: zone, sourceIndex: idx, targetEngine: getVsOppEngine() };
+  tapDesktopCard(zone, idx);
+  if (_desktopZoneMenuState) _desktopZoneMenuState = saved;
 }
 
 function playDesktopCard(idx, zone) {

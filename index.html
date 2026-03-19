@@ -812,11 +812,16 @@
       padding: 4px;
     }
 
-    .mg-card-chip.battle,
+    .mg-card-chip.battle {
+      width: 68px;
+      height: 95px;
+      font-size: 0.62rem;
+    }
+
     .mg-card-chip.mana {
-      width: 50px;
-      height: 70px;
-      font-size: 0.7rem;
+      width: 58px;
+      height: 81px;
+      font-size: 0.62rem;
     }
 
     .mg-card-chip.battle {
@@ -830,8 +835,9 @@
     }
 
     .mg-card-chip.shield {
-      width: 40px;
-      height: 40px;
+      width: 58px;
+      height: 81px;
+      flex-shrink: 0;
       background-image: url('card-back.jpg');
       background-size: cover;
       background-position: center;
@@ -848,8 +854,8 @@
     }
 
     .mg-card-chip.hand {
-      min-width: 60px;
-      height: 85px;
+      width: 68px;
+      height: 95px;
       background: linear-gradient(145deg, #c8d4dc 0%, #dce4e8 100%);
       border: 1px solid #9fb0b8;
       border-radius: 6px;
@@ -4439,10 +4445,17 @@
     }
 
     .dg-card-chip.hand,
-    .dg-card-chip.battle,
+    .dg-card-chip.battle {
+      width: 68px;
+      height: 95px;
+      border-radius: 7px;
+      font-size: 0.62rem;
+      transition: transform .12s, box-shadow .12s;
+    }
+
     .dg-card-chip.mana {
-      width: 52px;
-      height: 74px;
+      width: 58px;
+      height: 81px;
       border-radius: 7px;
       font-size: 0.62rem;
       transition: transform .12s, box-shadow .12s;
@@ -4456,10 +4469,9 @@
     }
 
     .dg-card-chip.shield {
-      width: 100%;
-      height: auto;
-      min-height: 62px;
-      aspect-ratio: 5 / 7;
+      width: 58px;
+      height: 81px;
+      flex-shrink: 0;
       border-radius: 7px;
       font-size: 0.78rem;
     }
@@ -4478,6 +4490,19 @@
 
     .dg-card-chip.tapped:hover {
       transform: rotate(14deg) translateX(8px) translateY(-2px);
+    }
+
+    .dg-card-chip.opponent {
+      transform: rotate(180deg);
+    }
+
+    .dg-card-chip.opponent.tapped {
+      transform: rotate(194deg) translateX(8px);
+    }
+
+    .dg-v2-row.opp-shield .dg-back-card,
+    .dg-v2-row.opp-hand .dg-back-card {
+      transform: rotate(180deg);
     }
 
     .dg-back-card {
@@ -6374,6 +6399,14 @@
     .mg-root.ls-active .mg-card-chip .mg-card-name  { font-size: 0.48rem; line-height: 1.1; }
     .mg-root.ls-active .mg-card-chip .mg-card-power { font-size: 0.44rem; }
     .mg-root.ls-active .mg-card-chip-img { border-radius: 2px; }
+
+    /* Rotate opponent cards 180deg in landscape board */
+    .mg-root.ls-active .mg-ls-row.opp-hand .mg-card-chip,
+    .mg-root.ls-active .mg-ls-row.opp-mana .mg-card-chip,
+    .mg-root.ls-active .mg-ls-row.opp-bz .mg-card-chip,
+    .mg-root.ls-active .mg-ls-row.opp-shield .mg-card-chip {
+      transform: rotate(180deg);
+    }
 
     /* Back cards (opponent's face-down cards) */
     .mg-card-chip.back {
