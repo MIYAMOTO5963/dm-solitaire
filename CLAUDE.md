@@ -60,15 +60,16 @@ Output:
 Done:
 - 想定ユースケースと異常系を実装でカバー
 
-### 5) Frontend-Agent (UI実装)
+### 5) Page-Designer-Agent (ページデザイン)
 Role:
-- HTML/CSS/JS の UI 変更、操作フロー維持
+- 画面設計、レイアウト、情報設計、UIトーン定義
+- 実装前にワイヤー方針とデザイン意図を明文化
 Input:
-- 要件、既存 UI 方針
+- 要件、既存 UI 方針、対象デバイス条件
 Output:
-- 変更コード、画面影響メモ
+- 画面仕様メモ、UI変更指示、主要コンポーネント定義
 Done:
-- 既存 UX を壊さず、要件を満たす
+- 実装担当が迷わず着手できる具体度で画面仕様が確定している
 
 ### 6) Data-Agent (データ整合)
 Role:
@@ -106,9 +107,9 @@ Role:
 Input:
 - 変更差分、テスト結果
 Output:
-- 重要度順の指摘、修正提案
+- 重要度順の指摘、修正提案、100点満点の採点結果
 Done:
-- Blocker/High 指摘が解消される
+- Blocker/High 指摘が解消され、スコア閾値を満たす
 
 ### 10) Release-Agent (統合と報告)
 Role:
@@ -138,16 +139,28 @@ Task Brief Template:
 - Validation:
 - Next:
 
+Review-Agent の採点フォーマット (必須):
+- Score Total: 0-100
+- Category Scores:
+	- Correctness: 0-30
+	- Safety: 0-20
+	- Readability/Maintainability: 0-20
+	- Test Coverage: 0-20
+	- UX/Design Consistency: 0-10
+- Fail Reasons: 減点理由を箇条書き
+- Improve Tasks: 閾値未満時に再委譲する修正タスク
+
 ## Execution Order (標準)
 
 1. Scout-Agent
 2. Spec-Agent
 3. Risk-Agent
-4. Backend-Agent / Frontend-Agent / Data-Agent (並列可)
-5. Test-Agent
-6. QA-Agent
-7. Review-Agent
-8. Release-Agent
+4. Page-Designer-Agent
+5. Backend-Agent / Data-Agent (並列可)
+6. Test-Agent
+7. QA-Agent
+8. Review-Agent
+9. Release-Agent
 
 ## Quality Gates
 
@@ -155,8 +168,16 @@ Task Brief Template:
 - Gate 2: High リスクの対策有無 (Risk-Agent)
 - Gate 3: テスト結果の妥当性 (QA-Agent)
 - Gate 4: レビュー指摘の解消 (Review-Agent)
+- Gate 5: Review Score >= 85/100 (Review-Agent)
 
 どれか1つでも未達なら、Release-Agent は完了宣言してはならない。
+
+## Score-Based Improvement Loop
+
+- Review Score が 85 未満の場合、Manager は完了報告を禁止する。
+- Manager は Fail Reasons を修正タスクへ変換し、担当エージェントへ再委譲する。
+- 再実装後は Test-Agent -> QA-Agent -> Review-Agent を再実行する。
+- このループは最大 3 回まで実行し、3 回目でも 85 未満なら「未達理由」と「残課題」を明示して停止する。
 
 ## Output Style
 
@@ -168,9 +189,11 @@ Task Brief Template:
 ## Quick Start Command (運用手順)
 
 1. 依頼受領後、Manager は 10 サブエージェントのうち最低 3 名を即時起動して探索・要件化・リスク抽出を並列実行する。
-2. 変更実装は Backend-Agent / Frontend-Agent / Data-Agent に分配する。
-3. 実装後は Test-Agent -> QA-Agent -> Review-Agent の順に必ず通す。
-4. 最後に Release-Agent がユーザー向け最終報告を作成する。
+2. 画面変更がある場合は Page-Designer-Agent を先行起動し、UI仕様を確定する。
+3. 変更実装は Backend-Agent / Data-Agent に分配する。
+4. 実装後は Test-Agent -> QA-Agent -> Review-Agent の順に必ず通す。
+5. Review Score が 85 未満なら改善ループを回す。
+6. 最後に Release-Agent がユーザー向け最終報告を作成する。
 
 ---
 
