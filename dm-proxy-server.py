@@ -757,6 +757,12 @@ def get_card_detail(wiki_page_id: str) -> dict | None:
 
 DMWIKI_BASE = "https://dmwiki.net"
 
+# Special promo/product variants that share effects with a canonical card but have no official image.
+# Maps variant card name → canonical card name used for image lookup fallback.
+CARD_IMAGE_ALIAS: dict[str, str] = {
+    "鬼丸装備【双剣】vs.鎖刃竜": "偽りの希望 鬼丸「終斗」",
+}
+
 # Civilization name → internal key
 _CIV_MAP_JA = {
     "光":         "light",
@@ -1704,6 +1710,20 @@ def get_card_detail_dmwiki(name: str) -> dict | None:
             img_url = _img_from_en_wiki(candidate)
             if img_url:
                 break
+
+    # Last resort: if this card is a promo variant with no image, fall back to the canonical card's image.
+    if not img_url:
+        canonical = CARD_IMAGE_ALIAS.get(card_name) or CARD_IMAGE_ALIAS.get(name)
+        if canonical:
+            for alias_candidate in _strict_name_variants(canonical):
+                img_url = _img_from_official(alias_candidate)
+                if img_url:
+                    break
+            if not img_url:
+                for alias_candidate in _strict_name_variants(canonical):
+                    img_url = _img_from_en_wiki(alias_candidate)
+                    if img_url:
+                        break
 
     return {
         "id":     f"dmwiki_{name}",

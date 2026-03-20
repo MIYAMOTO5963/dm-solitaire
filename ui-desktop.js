@@ -1687,6 +1687,11 @@ function renderDesktopGame() {
       : '';
 
     const directUnderCount = Array.isArray(card?.underCards) ? Math.min(card.underCards.length, 3) : 0;
+    const tapBtnHtml = isOwnBoardCard
+      ? `<button class="dg-tap-btn" onclick="event.stopPropagation(); tapDesktopCard('${sourceZone}', ${idx})" title="タップ/アンタップ">↻</button>`
+      : isVsOppBoardCard
+        ? `<button class="dg-tap-btn" onclick="event.stopPropagation(); onDesktopVsOppBoardCardClick('${sourceZone}', ${idx})" title="タップ/アンタップ">↻</button>`
+        : '';
     return `
       <div class="${chipClasses}"
         title="${escapeHtml(card?.name || '')}"
@@ -1701,6 +1706,7 @@ function renderDesktopGame() {
           : `<div class="dg-card-cost">${escapeHtml(String(cost))}</div>
         <div class="dg-card-name">${escapeHtml(shortName)}</div>
         <div class="dg-card-power">${escapeHtml(power)}</div>`}
+        ${tapBtnHtml}
       </div>
     `;
   };

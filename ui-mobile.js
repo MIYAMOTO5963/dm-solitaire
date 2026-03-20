@@ -2394,6 +2394,11 @@ function renderMobileGame() {
       : '';
 
     const directUnderCount = Array.isArray(card?.underCards) ? Math.min(card.underCards.length, 3) : 0;
+    const tapBtnHtml = isOwnBoardCard
+      ? `<button class="mg-tap-btn" ontouchstart="event.stopPropagation()" ontouchend="event.stopPropagation(); tapMobileCard('${sourceZone}', ${idx})" onclick="event.stopPropagation(); tapMobileCard('${sourceZone}', ${idx})" title="タップ/アンタップ">↻</button>`
+      : isVsOppBoardCard
+        ? `<button class="mg-tap-btn" ontouchstart="event.stopPropagation()" ontouchend="event.stopPropagation(); onMobileVsOppBoardCardTap('${sourceZone}', ${idx})" onclick="event.stopPropagation(); onMobileVsOppBoardCardTap('${sourceZone}', ${idx})" title="タップ/アンタップ">↻</button>`
+        : '';
     return `
       <div class="${chipClasses}" ${onclick} ${menuAttrs} title="${escapeHtmlMobile(card?.name || '')}"${directUnderCount > 0 ? ` style="margin-left:${directUnderCount * 5}px"` : ''}>
         ${underCount > 0 ? renderMobileUnderPeekLayers(card) : ''}
@@ -2402,6 +2407,7 @@ function renderMobileGame() {
           : `<div class="mg-card-cost">${escapeHtmlMobile(String(cost))}</div>
         <div class="mg-card-name">${escapeHtmlMobile(shortName)}</div>
         <div class="mg-card-power">${escapeHtmlMobile(power)}</div>`}
+        ${tapBtnHtml}
       </div>
     `;
   };

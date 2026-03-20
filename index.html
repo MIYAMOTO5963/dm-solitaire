@@ -2505,6 +2505,27 @@
       position: relative;
     }
 
+    .mg-tap-btn {
+      position: absolute;
+      top: 3px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.42);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 20px;
+      text-align: center;
+      padding: 0;
+      z-index: 10;
+      opacity: 0.55;
+      pointer-events: auto;
+    }
+
     .dg-card-chip > .dg-card-chip-img,
     .dg-card-chip > .dg-card-cost,
     .dg-card-chip > .dg-card-name,
@@ -2928,6 +2949,7 @@
       align-items: center;
       justify-items: center;
       gap: 2px;
+      position: relative;
     }
 
     .dg-card-chip.shield.selected {
@@ -4499,6 +4521,31 @@
 
     .dg-card-chip.opponent.tapped {
       transform: rotate(194deg) translateX(8px);
+    }
+
+    .dg-tap-btn {
+      position: absolute;
+      top: 3px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.45);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-size: 11px;
+      line-height: 18px;
+      text-align: center;
+      padding: 0;
+      z-index: 10;
+      opacity: 0;
+      transition: opacity 0.15s;
+      pointer-events: auto;
+    }
+    .dg-card-chip:hover .dg-tap-btn {
+      opacity: 1;
     }
 
     .dg-v2-row.opp-shield .dg-back-card,
