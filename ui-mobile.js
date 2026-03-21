@@ -52,6 +52,7 @@ let _mobileDeckRevealModalState = {
 let _mobileGameLog = [];
 let _handDiscardStateMobile = null;
 let _mobileLogOpen = false;
+let _mobileBuilderActiveTab = 'deck'; // 'deck' | 'search'
 
 function escapeHtmlMobile(str) {
   return String(str ?? '')
@@ -1849,6 +1850,18 @@ function initMobileUI() {
   bindMobileDelegatedEvents();
 }
 
+function switchMobileBuilderTab(tab) {
+  _mobileBuilderActiveTab = tab;
+  document.querySelectorAll('.ml-builder-tab-panel')
+    .forEach(p => p.classList.toggle('active', p.dataset.tab === tab));
+  document.querySelectorAll('.ml-builder-tab-btn')
+    .forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  if (tab === 'search') {
+    const input = document.getElementById('mobile-search-input');
+    if (input) setTimeout(() => input.focus(), 80);
+  }
+}
+
 /**
  * 1カラムレイアウトのデッキ一覧画面
  */
@@ -1919,17 +1932,21 @@ function renderMobileDeckList() {
       const thumb = renderMobileCardThumb(card, 'ml-deck-thumb');
       const payload = escapeAttrJsMobile(encodeURIComponent(JSON.stringify(card)));
       return `
-        <div class="ml-deck-tile" onclick="openMobileDeckCardDetail('${payload}')">
-          ${thumb}
+        <div class="ml-deck-tile ${escapeHtmlMobile(getMobileCardCivClass(card))}" onclick="openMobileDeckCardDetail('${payload}')">
+          <div class="ml-deck-tile-strip ${escapeHtmlMobile(getMobileCardCivClass(card))}"></div>
+          <div class="ml-deck-tile-img-wrap">
+            ${thumb}
+            ${(card.count || 1) > 1 ? `<div class="ml-deck-tile-count">×${card.count}</div>` : ''}
+          </div>
           <div class="ml-deck-tile-name">${escapeHtmlMobile(getMobileCardDisplayName(card))}</div>
           <div class="ml-deck-tile-meta">
             <span>コスト ${escapeHtmlMobile(getMobileCardCostLabel(card))}</span>
             <span>${escapeHtmlMobile(String(card.count || 1))}枚</span>
           </div>
-          <div class="ml-deck-controls" onclick="event.stopPropagation()">
-            <button type="button" data-mg-action="dec-card" data-idx="${i}" class="ml-deck-btn minus">-</button>
-            <button type="button" data-mg-action="inc-card" data-idx="${i}" class="ml-deck-btn plus">+</button>
-            <button type="button" data-mg-action="remove-card" data-idx="${i}" class="ml-deck-btn delete">削除</button>
+          <div class="ml-deck-controls">
+            <button type="button" onclick="event.stopPropagation(); decrementMobileCardCount(${i})" class="ml-deck-btn minus">-</button>
+            <button type="button" onclick="event.stopPropagation(); incrementMobileCardCount(${i})" class="ml-deck-btn plus">+</button>
+            <button type="button" onclick="event.stopPropagation(); removeMobileCard(${i})" class="ml-deck-btn delete">削除</button>
           </div>
         </div>
       `;
@@ -1942,47 +1959,65 @@ function renderMobileDeckList() {
         <div class="ml-builder-left">
           <select id="mobile-deck-select" class="ml-input ml-builder-select" onchange="onMobileDeckSelectChange(this.value)">
             <option value="">デッキを選択</option>
-            <option value="__new__">＋新規デッキ作成</option>
+            <option value="__new__">＋ 新規デッキ作成</option>
             ${deckOptionsHtml}
           </select>
         </div>
         <div class="ml-builder-center">
-          <div class="ml-builder-account">${escapeHtmlMobile(userLabel)}</div>
+          <span class="ml-builder-account">${escapeHtmlMobile(userLabel)}</span>
           <button type="button" onclick="logout()" class="ml-account-logout">ログアウト</button>
-        </div>
-        <div class="ml-builder-right">
-          <button type="button" onclick="deleteSelectedMobileDeck()" ${hasDeckSelected ? '' : 'disabled'} class="ml-top-btn delete ${hasDeckSelected ? '' : 'disabled'}">削除</button>
-          <button type="button" onclick="saveMobileDeck()" ${canSaveSelectedDeck ? '' : 'disabled'} class="ml-top-btn save ${canSaveSelectedDeck ? '' : 'disabled'}">保存</button>
-          <button type="button" onclick="restoreAllMobileLocalDecksToCloud()" ${canBulkCloudRestore ? '' : 'disabled'} class="ml-top-btn save ${canBulkCloudRestore ? '' : 'disabled'}">復元</button>
-          <button type="button" onclick="playMobileDeckGame()" ${canPlaySelectedDeck ? '' : 'disabled'} class="ml-top-btn play ${canPlaySelectedDeck ? '' : 'disabled'}">一人回し</button>
-          <button type="button" onclick="openMobileVsSetup()" ${canPlaySelectedDeck ? '' : 'disabled'} class="ml-top-btn play ${canPlaySelectedDeck ? '' : 'disabled'}">疑似対戦</button>
-          <button type="button" onclick="openSelectedMobileDeckOnline()" ${hasDeckSelected ? '' : 'disabled'} class="ml-top-btn online ${hasDeckSelected ? '' : 'disabled'}">オンライン対戦</button>
         </div>
       </div>
 
-      <div class="ml-main ml-builder-main">
-        <div class="ml-panel ml-builder-summary">
-          <div class="ml-summary-name">${hasDeckSelected ? escapeHtmlMobile(deckName) : 'デッキ未選択'}</div>
-          <div class="ml-summary-stats">合計 ${cardCount}枚 / ユニーク ${uniqueCount}</div>
-        </div>
+      <div class="ml-builder-tabs">
+        <button type="button" class="ml-builder-tab-btn ${_mobileBuilderActiveTab === 'deck' ? 'active' : ''}" data-tab="deck" onclick="switchMobileBuilderTab('deck')">
+          デッキ (${uniqueCount})
+        </button>
+        <button type="button" class="ml-builder-tab-btn ${_mobileBuilderActiveTab === 'search' ? 'active' : ''}" data-tab="search" onclick="switchMobileBuilderTab('search')">
+          カード検索
+        </button>
+      </div>
 
-        <div class="ml-panel ml-deck-grid-wrap">
-          <h3 class="ml-heading">デッキ表示</h3>
+      <div class="ml-builder-tab-panel ${_mobileBuilderActiveTab === 'deck' ? 'active' : ''}" data-tab="deck">
+        <div class="ml-builder-summary">
+          <div class="ml-summary-row">
+            <div class="ml-summary-name">${hasDeckSelected ? escapeHtmlMobile(deckName) : 'デッキ未選択'}</div>
+            <div class="ml-summary-stats"><strong>${cardCount}</strong> 枚 / ${uniqueCount} 種</div>
+          </div>
+          ${hasDeckSelected ? `<div class="ml-summary-progress"><div class="ml-summary-progress-fill" style="width:${Math.min(100, Math.round((cardCount / 40) * 100))}%"></div></div>` : ''}
+        </div>
+        <div class="ml-deck-grid-wrap">
           <div class="ml-deck-grid">
-            ${hasDeckSelected ? deckGridHtml : '<div class="ml-empty-decks">左上でデッキを選択してください。</div>'}
+            ${hasDeckSelected ? deckGridHtml : '<div class="ml-empty-decks">上でデッキを選択してください。</div>'}
           </div>
         </div>
+      </div>
 
-        <div class="ml-panel ml-builder-search">
-          <h3 class="ml-heading">カード名検索</h3>
+      <div class="ml-builder-tab-panel ${_mobileBuilderActiveTab === 'search' ? 'active' : ''}" data-tab="search">
+        <div class="ml-builder-search">
           <input
             type="text"
             id="mobile-search-input"
-            placeholder="カード名..."
+            placeholder="カード名を入力..."
             value="${escapeHtmlMobile(_mobileSearchState.query || '')}"
             class="ml-input"
             oninput="onMobileSearchInput()">
           <div id="mobile-search-results" class="ml-stack ml-stack-tight"></div>
+        </div>
+      </div>
+
+      <div class="ml-bottom-bar">
+        <div class="ml-bottom-row ml-bottom-row-play">
+          <button type="button" onclick="playMobileDeckGame()" ${canPlaySelectedDeck ? '' : 'disabled'} class="ml-bottom-btn solo ${canPlaySelectedDeck ? '' : 'disabled'}">一人回し</button>
+          <button type="button" onclick="openMobileVsSetup()" ${canPlaySelectedDeck ? '' : 'disabled'} class="ml-bottom-btn vs ${canPlaySelectedDeck ? '' : 'disabled'}">疑似対戦</button>
+          <button type="button" onclick="openSelectedMobileDeckOnline()" ${hasDeckSelected ? '' : 'disabled'} class="ml-bottom-btn online ${hasDeckSelected ? '' : 'disabled'}">オンライン</button>
+        </div>
+        <div class="ml-bottom-row ml-bottom-row-manage">
+          <div class="ml-bottom-manage-left">
+            <button type="button" onclick="deleteSelectedMobileDeck()" ${hasDeckSelected ? '' : 'disabled'} class="ml-bottom-btn delete ${hasDeckSelected ? '' : 'disabled'}">削除</button>
+            <button type="button" onclick="restoreAllMobileLocalDecksToCloud()" ${canBulkCloudRestore ? '' : 'disabled'} class="ml-bottom-btn restore ${canBulkCloudRestore ? '' : 'disabled'}">復元</button>
+          </div>
+          <button type="button" onclick="saveMobileDeck()" ${canSaveSelectedDeck ? '' : 'disabled'} class="ml-bottom-btn save ${canSaveSelectedDeck ? '' : 'disabled'}">保存</button>
         </div>
       </div>
     </div>

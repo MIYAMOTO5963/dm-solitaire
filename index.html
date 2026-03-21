@@ -17,6 +17,16 @@
       --text-dim: #7a6a5a;
       --panel: #faf4ec;
       --border: #e2d6c8;
+      --builder-header-from: #5c3d2e;
+      --builder-header-to:   #8b5e3c;
+      --builder-surface:     rgba(255, 250, 242, 0.9);
+      --builder-border:      rgba(167, 131, 96, 0.28);
+      --civ-fire:   #d16f44;
+      --civ-water:  #4f86c5;
+      --civ-nature: #5b9a5a;
+      --civ-light:  #c2ad62;
+      --civ-dark:   #6c5a7e;
+      --civ-multi:  #8a7a6a;
     }
     
     body {
@@ -2074,15 +2084,15 @@
     }
 
     .ml-header {
-      background: #6b8f8a;
+      background: linear-gradient(135deg, var(--builder-header-from) 0%, var(--builder-header-to) 100%);
       color: #fff;
-      padding: 12px;
+      padding: 10px 14px;
       font-weight: 600;
-      text-align: center;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
+      box-shadow: 0 2px 8px rgba(58, 32, 14, 0.25);
     }
 
     .ml-title {
@@ -2109,17 +2119,22 @@
     }
 
     .ml-panel {
-      background: #fafbf9;
+      background: var(--builder-surface);
       border-radius: 10px;
       padding: 12px;
-      border: 1px solid #e0e5e0;
-      box-shadow: 0 1px 4px rgba(62,43,25,0.08);
+      border: 1px solid var(--builder-border);
+      box-shadow: 0 1px 4px rgba(62, 43, 25, 0.08);
     }
 
     .ml-heading {
-      margin-bottom: 10px;
-      font-size: 0.95rem;
-      color: #3d4a44;
+      margin-bottom: 8px;
+      font-size: 0.80rem;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--builder-border);
     }
 
     .ml-helper-text {
@@ -3319,66 +3334,67 @@
     }
 
     .ml-builder-top {
-      display: grid;
-      grid-template-columns: minmax(118px, 1.25fr) minmax(96px, 1fr) minmax(152px, 1.35fr);
-      gap: 8px;
-      padding: 10px;
-      border-bottom: 1px solid rgba(141, 112, 84, 0.24);
-      background: linear-gradient(180deg, rgba(255,250,240,0.96) 0%, rgba(247,238,226,0.95) 100%);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, var(--builder-header-from) 0%, var(--builder-header-to) 100%);
+      box-shadow: 0 2px 8px rgba(58, 32, 14, 0.25);
+      border-bottom: 2px solid rgba(194, 160, 100, 0.45);
+      flex-shrink: 0;
     }
 
-    .ml-builder-left,
-    .ml-builder-center,
-    .ml-builder-right {
-      min-width: 0;
+    .ml-builder-left { flex: 1; min-width: 0; }
+    .ml-builder-center {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 999px;
+      padding: 5px 12px;
+      flex-shrink: 0;
     }
+    .ml-builder-right { display: none; }
 
     .ml-builder-select {
       margin-bottom: 0;
-      height: 100%;
-      min-height: 42px;
-      font-size: 0.84rem;
-      border-color: rgba(149,117,87,0.34);
-      background: rgba(255,255,255,0.86);
-      color: #4d3929;
-    }
-
-    .ml-builder-center {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      gap: 4px;
-      border: 1px solid rgba(166, 134, 102, 0.34);
+      height: 40px;
+      font-size: 0.88rem;
+      border: 1px solid rgba(255, 255, 255, 0.30);
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
       border-radius: 8px;
-      background: rgba(255, 252, 245, 0.8);
-      padding: 6px;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23fff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 28px;
+      padding-left: 10px;
     }
+    .ml-builder-select option { background: #5c3d2e; color: #fff; }
 
     .ml-builder-account {
-      font-size: 0.75rem;
-      line-height: 1.25;
+      font-size: 0.78rem;
       font-weight: 700;
-      color: #6a5038;
-      text-align: center;
-      word-break: break-word;
+      color: #fff;
+      max-width: 80px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .ml-account-logout {
       border: none;
       background: transparent;
-      color: #7f5f43;
-      font-size: 0.66rem;
+      color: rgba(255, 255, 255, 0.75);
+      font-size: 0.68rem;
       text-decoration: underline;
       cursor: pointer;
       padding: 0;
       line-height: 1;
-    }
-
-    .ml-builder-right {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
+      flex-shrink: 0;
     }
 
     .ml-top-btn {
@@ -3406,49 +3422,223 @@
       opacity: 0.78;
     }
 
-    .ml-builder-main {
-      gap: 10px;
-      padding: 10px;
+    /* ===== タブシステム (Pill Fill) ===== */
+    .ml-builder-tabs {
+      display: flex;
+      gap: 8px;
+      padding: 8px 12px;
+      background: rgba(250, 244, 236, 0.97);
+      border-bottom: 1px solid var(--builder-border);
+      flex-shrink: 0;
     }
+    .ml-builder-tab-btn {
+      flex: 1;
+      padding: 9px 14px;
+      border: none;
+      background: rgba(167, 131, 96, 0.13);
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      cursor: pointer;
+      border-radius: 20px;
+      transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+    }
+    .ml-builder-tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 2px 10px rgba(179, 122, 76, 0.32);
+    }
+
+    /* ===== タブパネル ===== */
+    .ml-builder-tab-panel {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      gap: 8px;
+      min-height: 0;
+    }
+    .ml-builder-tab-panel.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ===== 文明カラーストリップ ===== */
+    .ml-deck-tile-strip { height: 4px; width: 100%; flex-shrink: 0; }
+    .ml-deck-tile-strip.fire    { background: var(--civ-fire); }
+    .ml-deck-tile-strip.water   { background: var(--civ-water); }
+    .ml-deck-tile-strip.nature  { background: var(--civ-nature); }
+    .ml-deck-tile-strip.light   { background: var(--civ-light); }
+    .ml-deck-tile-strip.dark,
+    .ml-deck-tile-strip.darkness { background: var(--civ-dark); }
+    .ml-deck-tile-strip.multi   { background: linear-gradient(90deg, var(--civ-fire), var(--civ-water), var(--civ-nature)); }
+
+    /* ===== タイル画像ラップ + 枚数バッジ ===== */
+    .ml-deck-tile-img-wrap {
+      position: relative;
+      flex-shrink: 0;
+    }
+    .ml-deck-tile-count {
+      position: absolute;
+      bottom: 5px;
+      right: 5px;
+      background: rgba(20, 12, 6, 0.70);
+      color: #fff;
+      font-size: 0.73rem;
+      font-weight: 800;
+      padding: 2px 5px;
+      border-radius: 5px;
+      line-height: 1.3;
+      letter-spacing: 0.02em;
+      pointer-events: none;
+    }
+
+    /* ===== 検索パネル (タブ内) ===== */
+    .ml-builder-search {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+      border: none;
+      background: transparent;
+      padding-bottom: 0;
+    }
+    .ml-builder-search .ml-input {
+      margin-bottom: 0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(255, 252, 245, 0.97);
+      box-shadow: 0 2px 6px rgba(62, 43, 25, 0.06);
+    }
+
+    /* ===== ボトムアクションバー (2行) ===== */
+    .ml-bottom-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: linear-gradient(180deg, rgba(250,244,236,0.98) 0%, rgba(244,237,225,1.0) 100%);
+      border-top: 1px solid var(--builder-border);
+      padding: 8px 12px;
+      padding-bottom: calc(8px + env(safe-area-inset-bottom));
+      box-shadow: 0 -4px 16px rgba(58, 32, 14, 0.12);
+      flex-shrink: 0;
+    }
+    .ml-bottom-row {
+      display: flex;
+      gap: 6px;
+      align-items: stretch;
+    }
+    .ml-bottom-row-play .ml-bottom-btn { flex: 1; }
+    .ml-bottom-row-manage { justify-content: space-between; }
+    .ml-bottom-manage-left { display: flex; gap: 6px; }
+    .ml-bottom-btn {
+      border: none;
+      border-radius: 9px;
+      padding: 10px 12px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      line-height: 1.2;
+      cursor: pointer;
+      color: #fff;
+      min-height: 42px;
+      white-space: nowrap;
+      transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+    }
+    .ml-bottom-btn:active { transform: translateY(1px); opacity: 0.82; }
+    /* 削除・復元: 小さめ固定幅 */
+    .ml-bottom-btn.delete  { background: #834444; min-width: 52px; }
+    .ml-bottom-btn.restore { background: #536070; min-width: 52px; }
+    /* プレイ系: 同一カラーファミリー */
+    .ml-bottom-btn.solo    { background: #3a6e56; }
+    .ml-bottom-btn.vs      { background: #445f7a; }
+    .ml-bottom-btn.online  { background: #335e80; }
+    /* 保存: アクセント・目立つ */
+    .ml-bottom-btn.save {
+      background: var(--accent);
+      min-width: 64px;
+      font-size: 0.92rem;
+      box-shadow: 0 2px 10px rgba(179, 122, 76, 0.38);
+      letter-spacing: 0.02em;
+    }
+    .ml-bottom-btn.save:active { background: var(--accent-hover); box-shadow: none; }
+    .ml-bottom-btn:disabled,
+    .ml-bottom-btn.disabled {
+      background: #b2b8be !important;
+      color: #e8ecef;
+      cursor: not-allowed;
+      opacity: 0.60;
+      box-shadow: none !important;
+      transform: none !important;
+    }
+
+    .ml-builder-main { display: none; }
 
     .ml-builder-summary {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      border: 1px solid rgba(168,132,96,0.28);
-      background: rgba(255, 248, 236, 0.76);
+      flex-direction: column;
+      gap: 7px;
+      padding: 10px 14px;
+      background: rgba(255, 248, 230, 0.92);
+      border: 1px solid var(--builder-border);
+      border-radius: 10px;
+      flex-shrink: 0;
     }
-
+    .ml-summary-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
     .ml-summary-name {
       font-weight: 700;
-      font-size: 0.9rem;
+      font-size: 0.92rem;
       color: #4a3422;
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-
     .ml-summary-stats {
-      font-size: 0.76rem;
+      font-size: 0.80rem;
       color: #765c43;
       white-space: nowrap;
       flex-shrink: 0;
+      font-weight: 600;
+    }
+    .ml-summary-progress {
+      width: 100%;
+      height: 4px;
+      background: rgba(167, 131, 96, 0.18);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .ml-summary-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--civ-nature) 0%, var(--accent) 100%);
+      border-radius: 3px;
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      min-width: 3px;
     }
 
     .ml-deck-grid-wrap {
-      border: 1px solid rgba(167,131,96,0.28);
-      background: rgba(255, 250, 242, 0.8);
+      flex: 1;
+      border: 1px solid var(--builder-border);
+      background: var(--builder-surface);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
     }
 
     .ml-deck-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
-      max-height: 44vh;
+      flex: 1;
       overflow-y: auto;
-      padding-right: 2px;
+      padding: 10px;
     }
 
     .ml-deck-tile {
