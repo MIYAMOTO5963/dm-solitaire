@@ -2113,6 +2113,7 @@
       border-radius: 10px;
       padding: 12px;
       border: 1px solid #e0e5e0;
+      box-shadow: 0 1px 4px rgba(62,43,25,0.08);
     }
 
     .ml-heading {
@@ -2150,6 +2151,12 @@
       font-size: 1rem;
       background: #fff;
       color: #3d4a44;
+    }
+
+    .ml-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(179,122,76,0.15);
     }
 
     .ml-stack {
@@ -2244,10 +2251,7 @@
     }
 
     .ml-search-text {
-      color: #6b7b72;
-      font-size: 0.8rem;
-      margin: 4px 0;
-      line-height: 1.4;
+      display: none;
     }
 
     .ml-search-actions {
@@ -2256,27 +2260,39 @@
       margin-top: 6px;
     }
 
-    .ml-detail-btn,
-    .ml-add-btn {
-      flex: 1;
+    .ml-detail-btn {
+      flex: 0 0 auto;
       width: auto;
       margin-top: 0;
-      padding: 8px;
-      border: none;
+      padding: 8px 12px;
       border-radius: 5px;
       cursor: pointer;
       font-size: 0.8rem;
       font-weight: 700;
-    }
-
-    .ml-detail-btn {
-      background: #8b98a1;
-      color: #fff;
+      background: transparent;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+      min-height: 40px;
     }
 
     .ml-add-btn {
-      background: #7a94a8;
+      flex: 1;
+      width: auto;
+      margin-top: 0;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.88rem;
+      font-weight: 700;
+      background: var(--accent);
       color: #fff;
+      min-height: 40px;
+      transition: background 0.15s;
+    }
+
+    .ml-add-btn:active {
+      background: var(--accent-hover);
     }
 
     .ml-edit-header {
@@ -3215,9 +3231,9 @@
     }
 
     .ml-search-thumb {
-      width: 44px;
-      height: 44px;
-      border-radius: 6px;
+      width: 54px;
+      height: 72px;
+      border-radius: 5px;
       object-fit: cover;
       border: 1px solid #d8dfe4;
       background: #ecf1f4;
@@ -3228,33 +3244,40 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.52rem;
-      color: #6f7d88;
+      font-size: 0.65rem;
+      background: linear-gradient(145deg, #e8dfd2, #d4c8b5);
+      color: #7a6043;
       font-weight: 700;
     }
 
     .ml-search-cost {
-      min-width: 22px;
+      min-width: 24px;
       text-align: center;
-      background: #e3e9ef;
+      background: #4a3f34;
       border-radius: 999px;
-      font-size: 0.74rem;
-      font-weight: 700;
-      color: #5d6f80;
-      padding: 1px 6px;
+      font-size: 0.78rem;
+      font-weight: 800;
+      color: #f5ede0;
+      padding: 2px 8px;
     }
 
     .ml-search-meta {
-      margin-top: 2px;
-      font-size: 0.74rem;
+      margin-top: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
       color: #85694d;
+      background: rgba(179,122,76,0.1);
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(179,122,76,0.2);
     }
 
     .ml-search-empty {
       text-align: center;
-      font-size: 0.82rem;
-      color: #7b8a80;
-      padding: 8px;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      padding: 20px 8px;
     }
 
     .ml-more-btn {
@@ -3273,6 +3296,20 @@
     .ml-more-btn:disabled {
       opacity: 0.65;
       cursor: default;
+    }
+
+    @keyframes ml-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .ml-spinner {
+      width: 22px;
+      height: 22px;
+      border: 2.5px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: ml-spin 0.65s linear infinite;
+      margin: 14px auto;
     }
 
     /* Mobile deck builder redesign */
@@ -3460,11 +3497,11 @@
     }
 
     .ml-deck-tile-name {
-      font-size: 0.68rem;
+      font-size: 0.78rem;
       line-height: 1.3;
       color: #4a3422;
       font-weight: 700;
-      padding: 5px 6px 2px;
+      padding: 6px 7px 3px;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       line-clamp: 2;
@@ -3478,7 +3515,7 @@
       justify-content: space-between;
       align-items: center;
       padding: 0 6px 5px;
-      font-size: 0.64rem;
+      font-size: 0.70rem;
       color: #7a6043;
       font-weight: 600;
       gap: 6px;
@@ -3494,12 +3531,13 @@
     .ml-deck-btn {
       border: none;
       border-radius: 5px;
-      padding: 5px 4px;
-      font-size: 0.68rem;
+      padding: 8px 4px;
+      font-size: 0.76rem;
       font-weight: 700;
       color: #fff;
       cursor: pointer;
       line-height: 1;
+      min-height: 36px;
     }
 
     .ml-deck-btn.minus { background: #926067; }
@@ -3573,10 +3611,10 @@
       flex: 0 0 auto;
       min-width: 0;
       width: 100%;
-      min-height: 34px;
+      min-height: 44px;
       padding: 7px 6px;
       border-radius: 8px;
-      font-size: 0.74rem;
+      font-size: 0.80rem;
       font-weight: 700;
       line-height: 1.2;
     }

@@ -2281,7 +2281,7 @@ function renderMobileSearchResults() {
   if (!container) return;
 
   if (_mobileSearchState.loading) {
-    container.innerHTML = '<div class="ml-search-empty">検索中...</div>';
+    container.innerHTML = '<div class="ml-search-empty"><div class="ml-spinner"></div></div>';
     return;
   }
 
