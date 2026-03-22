@@ -1720,7 +1720,7 @@ function renderDesktopGame() {
   const graveTopImage = getDesktopCardImageUrl(graveTopCard);
 
   container.innerHTML = `
-    <div class="dg-full-root dg-v2">
+    <div class="dg-full-root dg-v2${!olEff ? ' dg-v2-solo' : ''}">
       <div class="dg-v2-header ${headerTurnClass}">
         <div class="dg-v2-head-left">
           <div class="dg-turn-pill">T<b>${state.turn}</b> 手<b>${state.hand.length}</b> マナ<b>${state.manaZone.length}</b></div>

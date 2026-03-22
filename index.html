@@ -6130,7 +6130,7 @@
       flex: 1;
       min-height: 0;
       display: flex;
-      align-items: stretch;
+      align-items: center;
       gap: 5px;
     }
 
@@ -6176,6 +6176,33 @@
     .dg-v2-row.my-mana,
     .dg-v2-row.opp-shield,
     .dg-v2-row.my-shield { flex: 0.8; }
+
+    /* ソロモード: バトルゾーンだけ伸長、他は固定高さ */
+    .dg-v2-solo .dg-v2-row {
+      flex: 0 0 auto;
+    }
+    .dg-v2-solo .dg-v2-row.my-battle {
+      flex: 1;
+      min-height: 120px;
+    }
+    .dg-v2-solo .dg-v2-row.my-shield,
+    .dg-v2-solo .dg-v2-row.my-mana {
+      height: 108px;
+    }
+    .dg-v2-solo .dg-v2-row.my-hand {
+      height: 124px;
+    }
+    /* ソロモード: カードを大きく */
+    .dg-v2-solo .dg-card-chip.hand,
+    .dg-v2-solo .dg-card-chip.battle {
+      width: 80px;
+      height: 112px;
+    }
+    .dg-v2-solo .dg-card-chip.shield,
+    .dg-v2-solo .dg-card-chip.mana {
+      width: 68px;
+      height: 95px;
+    }
 
     .dg-v2-row.opp-mana .dg-v2-cards,
     .dg-v2-row.my-mana .dg-v2-cards {

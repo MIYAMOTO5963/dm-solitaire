@@ -1080,9 +1080,10 @@ def _official_proxy_image_url(raw_url: str) -> str:
 
 
 def _official_search_pairs(html: str) -> list[tuple[str, str]]:
+    # Match both src= and data-src= to support lazy-loading pages.
     pairs = re.findall(
         r"href=['\"](?:/card/detail/\?id=([^'\"]+))['\"]"
-        r".*?src=['\"](/wp-content/card/cardthumb/[^'\"]+)['\"]",
+        r".*?(?:data-src|src)=['\"](/wp-content/card/cardthumb/[^'\"]+)['\"]",
         html,
         re.DOTALL,
     )
@@ -1197,13 +1198,18 @@ def _official_thumb_id_candidates(card_id: str) -> list[str]:
 
 
 def _official_url_exists_fast(url: str, timeout: float = 2.5) -> bool:
-    req = urllib.request.Request(url, headers={**WIKI_HEADERS, "Accept": "image/*"}, method="HEAD")
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            code = int(getattr(r, "status", 200) or 200)
-            return 200 <= code < 400
-    except Exception:
-        return False
+    # Try HEAD first; fall back to a Range GET for CDNs that reject HEAD.
+    for method, extra in (("HEAD", {}), ("GET", {"Range": "bytes=0-0"})):
+        headers = {**WIKI_HEADERS, "Accept": "image/*", **extra}
+        req = urllib.request.Request(url, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                code = int(getattr(r, "status", 200) or 200)
+                if 200 <= code < 400 or code == 206:
+                    return True
+        except Exception:
+            continue
+    return False
 
 
 def _official_resolve_thumb_url(card_id: str) -> str:
@@ -1381,8 +1387,8 @@ def _official_art_variants_from_dmwiki(card_name: str, limit: int = 12) -> list[
                 continue
 
             page_title = _official_fetch_detail_title(card_id)
-            if page_title and not _official_name_matches(card_name, page_title):
-                # If title exists and clearly points to another card, skip.
+            if not page_title or not _official_name_matches(card_name, page_title):
+                # Require confirmed title match; unknown titles are also excluded.
                 continue
 
             seen_ids.add(card_id)
@@ -1445,14 +1451,6 @@ def _official_art_variants(card_name: str, limit: int = 20) -> list[dict]:
         if not page_title:
             continue
         if not _official_name_matches(card_name, page_title):
-            continue
-
-        # Official search can return stale/broken thumb paths for some cards
-        # (notably twin-pact alt IDs). Only keep resolvable images.
-        thumb_full = str(thumb_path or "").strip()
-        if thumb_full and not (thumb_full.startswith("http://") or thumb_full.startswith("https://")):
-            thumb_full = OFFICIAL_BASE + thumb_full
-        if not thumb_full or not _official_url_exists_fast(thumb_full):
             continue
 
         image_url = _official_proxy_image_url(thumb_path)
