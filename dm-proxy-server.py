@@ -202,6 +202,8 @@ def _resolve_cache_db_path() -> str:
 CACHE_DB  = _resolve_cache_db_path()
 CACHE_TTL = 90 * 86400  # 90 days
 CACHE_TTL_NO_IMAGE = 10 * 60  # 10 minutes for incomplete card detail
+# Bump this when image extraction logic changes to force re-fetch of stale cached images.
+CACHE_IMG_VERSION = 2
 
 
 def _bootstrap_cache_db_if_needed():
@@ -387,9 +389,10 @@ def _cache_set(cid: str, data: dict):
     con = None
     try:
         con = sqlite3.connect(CACHE_DB)
+        stamped = {**data, "_cache_img_version": CACHE_IMG_VERSION}
         con.execute(
             "INSERT OR REPLACE INTO card_cache (id, data, cached_at) VALUES (?, ?, ?)",
-            (cid, json.dumps(data, ensure_ascii=False), time.time())
+            (cid, json.dumps(stamped, ensure_ascii=False), time.time())
         )
         con.commit()
     except Exception as e:
@@ -906,10 +909,10 @@ def search_local(query: str) -> list[dict]:
         if nq not in _norm_fw(name).replace(" ", ""):
             continue
         seen.add(name)
-        # thumb は既存 card_cache にあればそちらを優先
+        # thumb は既存 card_cache にあればそちらを優先（最新バージョンのみ）
         if not thumb:
             cached = _cache_get(card_id)
-            if cached:
+            if cached and cached.get("_cache_img_version", 1) >= CACHE_IMG_VERSION:
                 thumb = str(cached.get("img") or cached.get("thumb") or "").strip()
         results.append({"id": card_id, "name": name, "thumb": thumb})
     return results
@@ -1773,8 +1776,16 @@ def get_card_detail_dmwiki(name: str) -> dict | None:
         effect_rows.append(r)
     effect = "\n".join(effect_rows).strip()
 
-    # Get card image: dmwiki HTML → dmwiki set-code → dmwiki attach list → official (name variants) → English wiki (name variants)
-    img_url = _img_from_dmwiki_html(html) or _img_from_dmwiki_setcode(html) or _img_from_dmwiki_attach(name)
+    # Get card image: prefer images from before the card table (card's own scan) to avoid
+    # picking up related-card images from the strategy section below the table.
+    table_pos = html.find('class="style_table"')
+    pre_table_html = html[:table_pos] if table_pos > 0 else ""
+    img_url = (
+        (pre_table_html and _img_from_dmwiki_html(pre_table_html))
+        or _img_from_dmwiki_html(html)
+        or _img_from_dmwiki_setcode(html)
+        or _img_from_dmwiki_attach(name)
+    )
     candidates = _strict_name_variants(card_name)
     if card_name != name:
         for variant in _strict_name_variants(name):
@@ -1885,6 +1896,9 @@ def _cached_detail_needs_refresh(cache_key: str, data: dict | None) -> tuple[boo
     image = _extract_card_image(data)
     if not image:
         return True, "missing-image"
+
+    if data.get("_cache_img_version", 1) < CACHE_IMG_VERSION:
+        return True, "img-version-outdated"
 
     key = str(cache_key or "")
     if key.startswith("dmwiki_"):
