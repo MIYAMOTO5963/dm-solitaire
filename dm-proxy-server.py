@@ -257,6 +257,15 @@ def _init_cache():
         )
     """)
     con.execute("""
+        CREATE TABLE IF NOT EXISTS search_index (
+            name       TEXT PRIMARY KEY,
+            card_id    TEXT NOT NULL,
+            thumb      TEXT NOT NULL DEFAULT '',
+            indexed_at REAL NOT NULL
+        )
+    """)
+    con.execute("CREATE INDEX IF NOT EXISTS idx_search_name ON search_index(name)")
+    con.execute("""
         CREATE TABLE IF NOT EXISTS decks (
             username TEXT NOT NULL,
             deck_name TEXT NOT NULL,
@@ -541,16 +550,32 @@ def search_cards(query: str, page: int = 1) -> tuple[list[dict], int]:
         total = d.get("query", {}).get("searchinfo", {}).get("totalhits", 0)
         return hits, total
 
-    # Japanese queries → search dmwiki.net; cache full results, return 10-per-page slices
+    # Japanese queries → local index first (instant), fall back to dmwiki.net
     if is_jp_query:
         PAGE_SIZE = 10
         cache_key = _norm_fw(query).replace(" ", "")
-        if cache_key not in _dmwiki_cache:
-            results = search_cards_dmwiki(query)
-            if results:  # only cache non-empty to avoid permanently stale entries
-                if len(_dmwiki_cache) >= DMWIKI_CACHE_MAX:
-                    _dmwiki_cache.pop(next(iter(_dmwiki_cache)))
-                _dmwiki_cache[cache_key] = results
+
+        # 1. メモリキャッシュ確認
+        if cache_key in _dmwiki_cache:
+            all_cards = _dmwiki_cache[cache_key]
+            start = (page - 1) * PAGE_SIZE
+            return all_cards[start:start + PAGE_SIZE], len(all_cards)
+
+        # 2. ローカル search_index を検索（HTTP 不要、高速）
+        local_results = search_local(query)
+        if local_results:
+            if len(_dmwiki_cache) >= DMWIKI_CACHE_MAX:
+                _dmwiki_cache.pop(next(iter(_dmwiki_cache)))
+            _dmwiki_cache[cache_key] = local_results
+            start = (page - 1) * PAGE_SIZE
+            return local_results[start:start + PAGE_SIZE], len(local_results)
+
+        # 3. ローカルになければ dmwiki.net へフォールバック
+        results = search_cards_dmwiki(query)
+        if results:
+            if len(_dmwiki_cache) >= DMWIKI_CACHE_MAX:
+                _dmwiki_cache.pop(next(iter(_dmwiki_cache)))
+            _dmwiki_cache[cache_key] = results
         all_cards = _dmwiki_cache.get(cache_key, [])
         start = (page - 1) * PAGE_SIZE
         return all_cards[start:start + PAGE_SIZE], len(all_cards)
@@ -857,6 +882,37 @@ def _ja_insert_spaces(q: str) -> str:
                 result.append(' ')
         result.append(ch)
     return ''.join(result)
+
+
+def search_local(query: str) -> list[dict]:
+    """ローカル search_index から部分一致検索する。dmwiki への HTTP 不要。"""
+    nq = _norm_fw(query).replace(" ", "")
+    if not nq:
+        return []
+    try:
+        con = sqlite3.connect(CACHE_DB)
+        # LIKE は大文字小文字を区別しないが全角は区別するため Python 側でフィルタ
+        rows = con.execute(
+            "SELECT name, card_id, thumb FROM search_index",
+        ).fetchall()
+        con.close()
+    except Exception:
+        return []
+    results = []
+    seen: set[str] = set()
+    for name, card_id, thumb in rows:
+        if name in seen:
+            continue
+        if nq not in _norm_fw(name).replace(" ", ""):
+            continue
+        seen.add(name)
+        # thumb は既存 card_cache にあればそちらを優先
+        if not thumb:
+            cached = _cache_get(card_id)
+            if cached:
+                thumb = str(cached.get("img") or cached.get("thumb") or "").strip()
+        results.append({"id": card_id, "name": name, "thumb": thumb})
+    return results
 
 
 def search_cards_dmwiki(query: str) -> list[dict]:
