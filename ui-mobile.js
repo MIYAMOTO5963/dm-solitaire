@@ -2404,9 +2404,6 @@ async function startMobileGame(deckName) {
   closeMobileCardZoneMenu();
   closeMobileDeckRevealModal();
   closeMobileDeckAllModal();
-  if (screen.orientation && typeof screen.orientation.lock === 'function') {
-    screen.orientation.lock('landscape').catch(() => {});
-  }
   renderMobileGame();
 }
 
@@ -2684,8 +2681,6 @@ function renderMobileGame() {
 
   container.innerHTML = `
     <div class="mg-root ls-active">
-      <div class="mg-portrait-warn">端末を横向きにしてください</div>
-
       <div class="mg-ls-board">
         ${oppRows}
         <div class="mg-ls-row my-bz">
@@ -4532,9 +4527,6 @@ function startMobileOnlineGame() {
   engineMobile.initGame(deckData);
   window._ol.eventSource = null;
   olStartEventListenerMobile();
-  if (screen.orientation && typeof screen.orientation.lock === 'function') {
-    screen.orientation.lock('landscape').catch(() => {});
-  }
   renderMobileGame();
   setTimeout(() => olSendActionMobile('state'), 200);
 }

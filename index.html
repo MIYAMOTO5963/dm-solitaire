@@ -6656,34 +6656,29 @@
       font-size: 0.85rem;
     }
 
-    /* ── Mobile Landscape Game Layout ─────────────────────── */
+    /* ── Mobile Game Layout (portrait & landscape) ─────────── */
 
-    /* Portrait warning - shown when device is portrait during battle */
-    .mg-portrait-warn {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      background: rgba(30,24,18,0.97);
-      color: #f6efe6;
-      font-size: 1rem;
-      font-weight: 600;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 20px;
-    }
+    /* Portrait adjustments - override flex ratios and allow ribbon wrap */
     @media (orientation: portrait) {
-      .mg-root.ls-active .mg-portrait-warn {
-        display: flex;
-      }
-      .mg-root.ls-active .mg-ls-board,
-      .mg-root.ls-active .mg-ribbon {
-        display: none !important;
-      }
+      .mg-root.ls-active .mg-ls-row.opp-hand   { flex: 0.6; }
+      .mg-root.ls-active .mg-ls-row.opp-mana   { flex: 0.55; }
+      .mg-root.ls-active .mg-ls-row.opp-shield { flex: 0.55; }
+      .mg-root.ls-active .mg-ls-row.opp-bz     { flex: 0.85; }
+      .mg-root.ls-active .mg-ls-row.my-bz      { flex: 1.1; }
+      .mg-root.ls-active .mg-ls-row.my-shield  { flex: 0.7; }
+      .mg-root.ls-active .mg-ls-row.my-mana    { flex: 0.7; }
+      .mg-root.ls-active .mg-ls-row.my-hand    { flex: 1.35; }
+      /* Ribbon can wrap when portrait width is narrow */
+      .mg-root.ls-active .mg-ribbon-main       { flex-wrap: wrap; }
+      /* Slightly bigger text since rows are taller */
+      .mg-root.ls-active .mg-card-chip .mg-card-cost  { font-size: 0.65rem; }
+      .mg-root.ls-active .mg-card-chip .mg-card-name  { font-size: 0.56rem; }
+      .mg-root.ls-active .mg-card-chip .mg-card-power { font-size: 0.52rem; }
+      /* Cap pile button size so it doesn't grow too large */
+      .mg-root.ls-active .mg-ls-pile { max-width: 52px; }
     }
 
-    /* Root in landscape mode */
+    /* Root game container */
     .mg-root.ls-active {
       display: flex;
       flex-direction: column;
